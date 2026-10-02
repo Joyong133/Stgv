@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>메이플 모험기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main id="app">
+  <div id="screen">
+    <canvas id="game" width="640" height="480" aria-label="메이플 모험기 게임 화면"></canvas>
+    <div id="nameEntry" hidden>
+      <label for="nameInput">모험가의 이름을 입력하세요</label>
+      <input id="nameInput" maxlength="8" autocomplete="off" spellcheck="false" value="">
+      <button id="nameOk" type="button">결정</button>
+    </div>
+  </div>
+  <div id="pad" aria-label="터치 컨트롤">
+    <div class="dpad">
+      <button class="pbtn up" data-key="up" aria-label="위">▲</button>
+      <button class="pbtn left" data-key="left" aria-label="왼쪽">◀</button>
+      <button class="pbtn right" data-key="right" aria-label="오른쪽">▶</button>
+      <button class="pbtn down" data-key="down" aria-label="아래">▼</button>
+    </div>
+    <div class="mid">
+      <button class="sbtn" data-key="sound" aria-label="소리 켜기/끄기">소리</button>
+      <button class="sbtn" data-key="run" aria-label="달리기">달리기</button>
+    </div>
+    <div class="ab">
+      <button class="pbtn b" data-key="cancel" aria-label="취소 / 메뉴">B</button>
+      <button class="pbtn a" data-key="ok" aria-label="확인 / 대화">A</button>
+    </div>
+  </div>
+  <p id="help">이동 <kbd>방향키</kbd>/<kbd>WASD</kbd> · 확인 <kbd>Z</kbd>/<kbd>Space</kbd>/<kbd>Enter</kbd> · 취소·메뉴 <kbd>X</kbd>/<kbd>Esc</kbd> · 달리기 <kbd>Shift</kbd> · 소리 <kbd>M</kbd></p>
+</main>
+<script src="js/core.js"></script>
+<script src="js/art.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/tiles.js"></script>
+<script src="js/data.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/npcs.js"></script>
+<script src="js/field.js"></script>
+<script src="js/battledraw.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

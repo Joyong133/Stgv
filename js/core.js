@@ -114,6 +114,7 @@ function setupTouch() {
   document.querySelectorAll('#pad [data-key]').forEach(btn => {
     const k = btn.dataset.key;
     if (k === 'sound' || k === 'run') {
+      if (k === 'sound') btn.classList.toggle('on', !Sound.muted);
       btn.addEventListener('click', () => {
         Sound.init();
         if (k === 'sound') { Sound.toggle(); btn.classList.toggle('on', !Sound.muted); }

@@ -42,8 +42,13 @@
         <button id="mHeroes" class="mbtn"><b>영웅</b><small>성장 · 진화 · 각성</small></button>
         <button id="mParty" class="mbtn"><b>편성</b><small>출전 영웅 6명</small></button>
       </div>
-      <button id="mSummon" class="mbtn summon"><b>영웅 소환</b><small>루비로 새 영웅 획득</small></button>
+      <div class="mrow">
+        <button id="mSummon" class="mbtn summon"><b>소환</b><small>새 영웅 획득</small></button>
+        <button id="mShop" class="mbtn shop"><b>상점</b><small>재료 · 골드</small></button>
+        <button id="mMission" class="mbtn mission"><b>임무</b><small>일일 · 업적</small></button>
+      </div>
     </nav>
+    <button id="mAttend" class="attendbtn">출석<br>보상</button>
   </section>
 
   <!-- 영웅 목록 -->
@@ -78,10 +83,13 @@
       <div id="dTags" class="dtags"></div>
       <div class="lvrow"><span id="dLvTxt"></span><div class="lvbar"><i id="dLvBar"></i></div></div>
       <div id="dStats" class="dstats"></div>
+      <div class="dtabs"><button class="dtab on" data-t="skill">스킬</button><button class="dtab" data-t="gear">장비</button></div>
       <div id="dSkills" class="dskills"></div>
+      <div id="dGear" class="dgear" hidden></div>
       <div class="dbtns">
         <button id="dLv1" class="btn"></button>
         <button id="dLv10" class="btn"></button>
+        <button id="dLvMax" class="btn"></button>
         <button id="dEvo" class="btn evo"></button>
       </div>
       <div class="dbtns small">
@@ -110,6 +118,21 @@
       <div id="sumCards"></div>
       <button id="sumClose" class="btn">확인</button>
     </div>
+  </section>
+
+  <!-- 상점 -->
+  <section id="shop" class="screen panelbg">
+    <header class="subbar"><button class="backbtn" data-back aria-label="뒤로">◀</button><h2>상점</h2><span class="count">매일 자정에 초기화</span>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-gold)"></i><b class="cur-gold"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-ruby)"></i><b class="cur-ruby"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-evo)"></i><b class="cur-evo"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-awk)"></i><b class="cur-awk"></b></span></div></header>
+    <div id="shopGrid" class="shopgrid"></div>
+  </section>
+
+  <!-- 임무 -->
+  <section id="mission" class="screen panelbg">
+    <header class="subbar"><button class="backbtn" data-back aria-label="뒤로">◀</button><h2>임무</h2>
+      <div class="ftabs inbar"><button class="ftab on" data-m="daily">일일 임무</button><button class="ftab" data-m="ach">업적</button></div>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-ruby)"></i><b class="cur-ruby"></b></span></div></header>
+    <div id="missionList" class="mlist"></div>
   </section>
 
   <!-- 편성 -->
@@ -152,7 +175,7 @@
       <div id="bPopName"></div>
       <div id="bPopInfo" class="info"></div>
       <div class="row"><button id="bPopUp" class="btn sm"></button><button id="bPopSkill" class="btn sm gold">스킬</button></div>
-      <button id="bPopBack" class="btn sm ghost"></button>
+      <div class="row"><button id="bPopMove" class="btn sm ghost">이동</button><button id="bPopBack" class="btn sm ghost"></button></div>
     </div>
   </section>
 
@@ -165,11 +188,13 @@
     </div>
   </div>
   <div id="toast"></div>
+  <div id="tut" hidden><div class="tbox"><span id="tutText"></span><div id="tutArrow" class="tarrow">▼</div></div></div>
 </div>
 
 <script src="js/util.js"></script>
 <script src="js/data.js"></script>
-<script src="js/art.js"></script>
+<script src="js/art_world.js"></script>
+<script src="js/art_hero.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/battle.js"></script>

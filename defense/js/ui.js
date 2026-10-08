@@ -59,6 +59,12 @@ const UI = {
     $('#mSummon').addEventListener('click', () => this.show('summon'));
     $('#mParty').addEventListener('click', () => this.show('party'));
     $('#mSettings').addEventListener('click', () => this.openSettings());
+    $('#mShop').addEventListener('click', () => this.show('shop'));
+    $('#mMission').addEventListener('click', () => this.show('mission'));
+    $('#mAttend').addEventListener('click', () => this.openAttendance(true));
+    $$('#mission .ftab').forEach(b => b.addEventListener('click', () => { this.missionTab = b.dataset.m; this.renderMissions(); }));
+    $$('#detail .dtab').forEach(b => b.addEventListener('click', () => { this.detailTab = b.dataset.t; this.renderDetail(); }));
+    $('#dLvMax').addEventListener('click', () => this.levelUp(999));
     $$('#heroes .ftab').forEach(b => b.addEventListener('click', () => { this.heroFilter = b.dataset.f; this.renderHeroes(); }));
     $('#sumOne').addEventListener('click', () => this.summon(1));
     $('#sumTen').addEventListener('click', () => this.summon(10));
@@ -89,6 +95,8 @@ const UI = {
     if (name === 'summon') this.renderSummon();
     if (name === 'party') this.renderParty();
     if (name === 'select') this.renderSelect();
+    if (name === 'shop') this.renderShop();
+    if (name === 'mission') this.renderMissions();
     this.refreshTop();
   },
   back() {
@@ -158,6 +166,93 @@ const UI = {
     $('#mBattle').classList.toggle('cont', !!S.checkpoint);
     $('#mBattleSub').textContent = S.checkpoint ? `이어하기 · ${DIFF_BY_ID[S.checkpoint.diff].name} ROUND ${S.checkpoint.wave}` : '성을 지켜라!';
     this.lobbyAnim = { t: 0, next: 2.5, state: 'idle', p: 0 };
+    this.game.checkDaily();
+    $('#mMission').classList.toggle('dot', this.missionClaimable() > 0);
+    $('#mShop').classList.toggle('dot', !(S.daily.shop.free >= 1));
+    const canAttend = S.attend.last !== todayKey();
+    $('#mAttend').classList.toggle('dot', canAttend);
+    if (canAttend && !this.attendShown) { this.attendShown = true; setTimeout(() => { if (this.screen === 'lobby' && $('#modal').hidden) this.openAttendance(false); }, 600); }
+  },
+
+  // ───────── 출석 ─────────
+  openAttendance(manual) {
+    const S = this.game.save;
+    const can = S.attend.last !== todayKey();
+    const day = can ? S.attend.day % 7 : (S.attend.day - 1 + 7) % 7;
+    const cells = ATTENDANCE.map((r, i) => {
+      const done = i < day || (!can && i === day);
+      return `<div class="aday ${i === day && can ? 'today' : ''} ${done ? 'done' : ''}"><small>${i + 1}일</small>${this.rewardHtml(r)}${done ? '<i class="chk">✔</i>' : ''}</div>`;
+    }).join('');
+    this.modal('출석 보상', `<div class="attend">${cells}</div><p class="hint">7일마다 처음부터 다시 받을 수 있습니다.</p>`,
+      can ? [{ t: '받기', cls: 'gold', fn: () => {
+        const r = ATTENDANCE[S.attend.day % 7];
+        S.attend.day = S.attend.day % 7 + 1; S.attend.last = todayKey();
+        this.game.grant(r); this.game.persist(); Sound.play('coin'); Sound.play('star');
+        this.toast('출석 보상을 받았습니다!'); this.renderLobby();
+      } }] : [{ t: '확인' }]);
+  },
+  rewardHtml(r) {
+    const k = { gold: 'gold', ruby: 'ruby', evo: 'evo', awk: 'awk' };
+    return Object.keys(r).filter(x => k[x]).map(x => `<span class="rw">${ico(k[x], 'ic sm')}${fmt(r[x])}</span>`).join('');
+  },
+
+  // ───────── 상점 ─────────
+  renderShop() {
+    const S = this.game.save; this.game.checkDaily();
+    const grid = $('#shopGrid'); grid.innerHTML = '';
+    for (const it of SHOP) {
+      const bought = S.daily.shop[it.id] || 0, left = it.limit - bought;
+      const main = Object.keys(it.give)[0];
+      const card = el('div', 'sitem ' + main + (left <= 0 ? ' soldout' : ''));
+      card.innerHTML = `<div class="sico">${ico(main, 'ic xl')}</div><b>${it.name}</b><div class="sgive">${this.rewardHtml(it.give)}</div>
+        <small>오늘 ${left} / ${it.limit}회</small>
+        <button class="btn ${it.cost ? '' : 'gold'}">${it.cost ? this.rewardHtml(it.cost) : '무료'}</button>`;
+      $('button', card).disabled = left <= 0;
+      $('button', card).addEventListener('click', () => {
+        if (left <= 0) return;
+        if (it.cost) for (const k in it.cost) if (S[k] < it.cost[k]) { Sound.play('error'); this.toast('재화가 부족합니다'); return; }
+        if (it.cost) for (const k in it.cost) S[k] -= it.cost[k];
+        S.daily.shop[it.id] = bought + 1;
+        this.game.grant(it.give); this.game.persist(); Sound.play('coin');
+        this.toast(it.name + ' 구매 완료'); this.renderShop();
+      });
+      grid.appendChild(card);
+    }
+  },
+
+  // ───────── 임무 · 업적 ─────────
+  missionClaimable() {
+    const S = this.game.save; this.game.checkDaily();
+    let n = 0;
+    for (const m of DAILY_MISSIONS) if (!S.daily.claimed[m.id] && (S.daily.c[m.key] || 0) >= m.goal) n++;
+    if (!S.daily.claimed[DAILY_ALL.id] && DAILY_MISSIONS.every(m => S.daily.claimed[m.id])) n++;
+    for (const a of ACHIEVEMENTS) if (!S.achieved[a.id] && this.game.achValue(a.key) >= a.goal) n++;
+    return n;
+  },
+  renderMissions() {
+    const S = this.game.save; this.game.checkDaily();
+    const tab = this.missionTab || 'daily';
+    $$('#mission .ftab').forEach(b => b.classList.toggle('on', b.dataset.m === tab));
+    const rows = [];
+    if (tab === 'daily') {
+      for (const m of DAILY_MISSIONS) rows.push({ m, v: S.daily.c[m.key] || 0, done: S.daily.claimed[m.id], claim: () => { S.daily.claimed[m.id] = true; } });
+      const allDone = DAILY_MISSIONS.every(m => S.daily.claimed[m.id]);
+      rows.push({ m: Object.assign({ goal: DAILY_MISSIONS.length }, DAILY_ALL), v: DAILY_MISSIONS.filter(m => S.daily.claimed[m.id]).length, done: S.daily.claimed[DAILY_ALL.id], ok: allDone, claim: () => { S.daily.claimed[DAILY_ALL.id] = true; }, special: true });
+    } else {
+      for (const a of ACHIEVEMENTS) rows.push({ m: a, v: this.game.achValue(a.key), done: S.achieved[a.id], claim: () => { S.achieved[a.id] = true; } });
+      rows.sort((x, y) => (x.done - y.done) || ((y.v >= y.m.goal) - (x.v >= x.m.goal)));
+    }
+    const list = $('#missionList'); list.innerHTML = '';
+    for (const r of rows) {
+      const ok = r.ok != null ? r.ok : r.v >= r.m.goal;
+      const row = el('div', 'mrow2 ' + (r.done ? 'done' : ok ? 'ok' : '') + (r.special ? ' special' : ''));
+      const k = Math.min(1, r.v / r.m.goal);
+      row.innerHTML = `<div class="mtxt"><b>${r.m.name}</b><div class="mbar"><i style="width:${k * 100}%"></i></div><small>${fmt(Math.min(r.v, r.m.goal))} / ${fmt(r.m.goal)}</small></div>
+        <div class="mrew">${this.rewardHtml(r.m.give)}</div><button class="btn sm ${ok && !r.done ? 'gold' : 'ghost'}">${r.done ? '완료' : ok ? '받기' : '진행 중'}</button>`;
+      const b = $('button', row); b.disabled = r.done || !ok;
+      b.addEventListener('click', () => { r.claim(); this.game.grant(r.m.give); this.game.persist(); Sound.play('coin'); Sound.play('star'); this.renderMissions(); });
+      list.appendChild(row);
+    }
   },
 
   // ───────── 영웅 목록 ─────────
@@ -181,7 +276,7 @@ const UI = {
     const grid = $('#heroGrid');
     grid.innerHTML = list.map(d => this.heroCardHtml(d, S.heroes[d.id], S.party.includes(d.id) ? '<div class="inparty">편성</div>' : '')).join('');
     $$('.hcard', grid).forEach(c => c.addEventListener('click', () => { this.detailId = c.dataset.id; this.detailList = list.map(d => d.id); this.show('detail'); }));
-    $('#heroCount').textContent = `보유 ${Object.keys(S.heroes).length} / ${HEROES.length}`;
+    $('#heroCount').innerHTML = `보유 ${Object.keys(S.heroes).length} / ${HEROES.length} · 도감 보너스 <b style="color:#ffd23f">공격력 +${Math.round(collectionBonus(S) * 100)}%</b>`;
   },
 
   // ───────── 영웅 상세 ─────────
@@ -200,7 +295,8 @@ const UI = {
     $('#dTags').innerHTML = `<span class="tag" style="background:${E.color}">${ico('e_' + def.elem, 'ic sm')}${E.name} 속성</span><span class="tag">${ROLES[def.role].name}</span>` +
       (h ? `<span class="tag stars s${h.awake ? 7 : h.star}">${starHtml(h)}${h.awake ? ' 각성' : ''}</span>` : '<span class="tag">미보유</span>');
     const hv = h || { star: 3, lvl: 1, awake: false };
-    const atk = heroAtk(def, hv), rng = heroRange(def, hv);
+    const gearB = h ? gearOf(h).w * GEAR.w.per : 0, colB = collectionBonus(S);
+    const atk = heroAtk(def, hv) * (1 + gearB + colB), rng = heroRange(def, hv);
     const max = heroMaxLv(hv);
     $('#dLvTxt').innerHTML = h ? `Lv.<b>${h.lvl}</b> / ${max}` : '획득하면 성장시킬 수 있습니다';
     $('#dLvBar').style.width = (100 * hv.lvl / max) + '%';
@@ -211,13 +307,18 @@ const UI = {
       <div><span>배치 비용</span><b>${ico('crys', 'ic sm')}${heroCost(def)}</b></div>
       <div><span>전투력</span><b class="pw">${fmt(heroPower(def, hv))}</b></div>
       <div><span>스킬 쿨타임</span><b>${(def.skill.cd * (hv.awake ? 0.85 : 1)).toFixed(1)}초</b></div>`;
+    const tab = this.detailTab || 'skill';
+    $$('#detail .dtab').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+    $('#dSkills').hidden = tab !== 'skill';
+    $('#dGear').hidden = tab !== 'gear';
+    if (tab === 'gear') this.renderGear(def, h);
     $('#dSkills').innerHTML = `
       <div class="sk"><b>기본 공격</b><p>${def.normal}</p></div>
       <div class="sk main"><b>${def.skill.name}</b><p>${def.skill.desc}</p></div>
       <div class="sk awk ${hv.awake ? 'on' : ''}"><b>${ico('awk', 'ic sm')} 각성 스킬 · ${def.askill.name}</b><p>${def.askill.desc}${hv.awake ? '' : ' <em>(각성 시 해금)</em>'}</p></div>`;
     // 성장 버튼
-    const b1 = $('#dLv1'), b10 = $('#dLv10'), be = $('#dEvo'), bp = $('#dParty'), bl = $('#dLeader');
-    [b1, b10, be, bp, bl].forEach(b => (b.hidden = !h));
+    const b1 = $('#dLv1'), b10 = $('#dLv10'), be = $('#dEvo'), bp = $('#dParty'), bl = $('#dLeader'), bm = $('#dLvMax');
+    [b1, b10, be, bp, bl, bm].forEach(b => (b.hidden = !h));
     if (h) {
       const c1 = lvCost(h.lvl);
       let n = 0, sum = 0; for (let l = h.lvl; l < max && n < 10; l++, n++) sum += lvCost(l);
@@ -225,6 +326,10 @@ const UI = {
       b1.disabled = h.lvl >= max || S.gold < c1;
       b10.innerHTML = h.lvl >= max ? '레벨 MAX' : `+${n} 레벨<span>${ico('gold', 'ic sm')}${fmt(sum)}</span>`;
       b10.disabled = h.lvl >= max || S.gold < c1;
+      let m = 0, ms = 0; for (let l = h.lvl; l < max && ms + lvCost(l) <= S.gold; l++, m++) ms += lvCost(l);
+      bm.innerHTML = h.lvl >= max ? '레벨 MAX' : `최대 +${m}<span>${ico('gold', 'ic sm')}${fmt(ms)}</span>`;
+      bm.disabled = m === 0;
+      b10.hidden = bm.hidden = h.lvl >= max;
       if (h.awake) { be.innerHTML = '각성 완료'; be.disabled = true; be.className = 'btn evo done'; }
       else if (h.star < 6) {
         const c = GRADE.evoCost[h.star];
@@ -247,6 +352,7 @@ const UI = {
     const max = heroMaxLv(h); let n = 0;
     while (n < times && h.lvl < max && S.gold >= lvCost(h.lvl)) { S.gold -= lvCost(h.lvl); h.lvl++; n++; }
     if (!n) { Sound.play('error'); this.toast(h.lvl >= max ? '최대 레벨입니다. 진화하세요!' : '골드가 부족합니다'); return; }
+    this.game.count('levelups', n);
     Sound.play('upgrade');
     this.sceneFx.burst(W * 0.25, H * 0.55, '#ffe27a', 24, 220, { kind: 'star' });
     this.sceneFx.text(W * 0.25, H * 0.25, 'LEVEL UP! +' + n, '#ffe27a', 34, { dur: 1.2 });
@@ -284,6 +390,32 @@ const UI = {
       <p class="cost">${awaken ? ico('awk') + c.awk + ' ' : ''}${ico('evo')}${c.evo} ${ico('gold')}${fmt(c.gold)}</p>
       <p class="hint">${awaken ? '공격력 대폭 상승 · 최대 레벨 70 · 각성 스킬 해금 · 스킬 쿨타임 15% 감소 · 사거리 증가' : '공격력 배율 상승 · 최대 레벨 +10 · 사거리 증가'}</p>`,
       [{ t: '취소', cls: 'ghost' }, { t: awaken ? '각성!' : '진화!', fn: go }]);
+  },
+  renderGear(def, h) {
+    const box = $('#dGear');
+    if (!h) { box.innerHTML = '<p class="hint">영웅을 획득하면 장비를 강화할 수 있습니다.</p>'; return; }
+    const g = gearOf(h), S = this.game.save, E = ELEMS[def.elem];
+    box.innerHTML = Object.keys(GEAR).map(k => {
+      const G = GEAR[k], lv = g[k], c = gearCost(lv);
+      return `<div class="gslot"><canvas class="gico" data-k="${k}" width="64" height="64"></canvas>
+        <div class="ginfo"><b>${G.name} <span>+${lv}</span></b><small>${G.stat} ${G.fmt(lv * G.per)}${lv < GEAR_MAX ? ` → ${G.fmt((lv + 1) * G.per)}` : ''}</small>
+        <div class="lvbar"><i style="width:${lv / GEAR_MAX * 100}%"></i></div></div>
+        <button class="btn sm" data-k="${k}" ${lv >= GEAR_MAX ? 'disabled' : ''}>${lv >= GEAR_MAX ? 'MAX' : `강화<span>${ico('gold', 'ic sm')}${fmt(c.gold)}${c.evo ? ' ' + ico('evo', 'ic sm') + c.evo : ''}</span>`}</button></div>`;
+    }).join('') + `<p class="hint">장비는 영웅마다 따로 강화되며 전투에서 바로 적용됩니다. +10부터는 진화석이 필요합니다.</p>`;
+    $$('canvas.gico', box).forEach(cv => drawGearIcon(cv.getContext('2d'), cv.dataset.k, def, g[cv.dataset.k]));
+    $$('button[data-k]', box).forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.k, lv = gearOf(h)[k], c = gearCost(lv);
+      if (lv >= GEAR_MAX) return;
+      if (S.gold < c.gold || S.evo < c.evo) { Sound.play('error'); this.toast('재화가 부족합니다'); return; }
+      S.gold -= c.gold; S.evo -= c.evo;
+      h.gear = Object.assign({ w: 0, r: 0, c: 0 }, h.gear); h.gear[k]++;
+      this.game.count('gearups'); this.game.persist(); this.refreshTop();
+      Sound.play('upgrade');
+      this.sceneFx.add('ring', { x: W * 0.25, y: H * 0.8, r: 160, color: E.light, w: 8, dur: 0.6 });
+      this.sceneFx.burst(W * 0.25, H * 0.5, '#ffe27a', 20, 240, { kind: 'star' });
+      this.sceneFx.text(W * 0.25, H * 0.22, GEAR[k].name + ' +' + h.gear[k], '#ffe27a', 34, { dur: 1.1 });
+      this.renderDetail();
+    }));
   },
   toggleParty(id, fromDetail) {
     const S = this.game.save;
@@ -333,6 +465,7 @@ const UI = {
       res.push(out);
     }
     S.stats.summons = (S.stats.summons || 0) + n;
+    this.game.count('summons', n);
     this.game.persist(); this.refreshTop();
     const top = Math.max(...res.map(r => r.star));
     this.summoning = { t: 0, top, res };
@@ -378,17 +511,17 @@ const UI = {
   renderSelect() {
     const S = this.game.save;
     const box = $('#diffCards'); box.innerHTML = '';
-    DIFFS.forEach((d, i) => {
+    DIFFS.concat([ENDLESS]).forEach((d, i) => {
       const rec = S.diffs[d.id] || {};
-      const unlocked = i === 0 || (S.diffs[DIFFS[i - 1].id] || {}).cleared;
+      const unlocked = d.endless ? (S.diffs.easy || {}).cleared : i === 0 || (S.diffs[DIFFS[i - 1].id] || {}).cleared;
       const cp = S.checkpoint && S.checkpoint.diff === d.id ? S.checkpoint : null;
       const card = el('div', `dcard ${d.map} ${unlocked ? '' : 'locked'} ${rec.cleared ? 'cleared' : ''}`);
       card.style.setProperty('--dc', d.color);
-      card.innerHTML = `<div class="dname">${d.name}</div><div class="drounds"><b>${d.rounds}</b> ROUND</div>
+      card.innerHTML = `<div class="dname">${d.name}</div><div class="drounds"><b>${d.endless ? '∞' : d.rounds}</b> ROUND</div>
         <div class="ddesc">${d.desc}</div>
-        <div class="drec">최고 기록 <b>${rec.best || 0}</b> / ${d.rounds}${rec.cleared ? ` · 클리어 ${rec.clears || 1}회` : ''}</div>
-        <div class="drew">${rec.cleared ? '반복 보상' : '첫 클리어'} ${ico('ruby', 'ic sm')}${rec.cleared ? Math.floor(d.clearRuby * 0.2) : d.clearRuby}${d.drop.awk ? ` · 보스 ${ico('awk', 'ic sm')}` : ''}</div>
-        ${unlocked ? '' : '<div class="lockmsg">🔒 이전 난이도 클리어 필요</div>'}
+        <div class="drec">최고 기록 <b>${rec.best || 0}</b>${d.endless ? ' 라운드' : ' / ' + d.rounds}${rec.cleared ? ` · 클리어 ${rec.clears || 1}회` : ''}</div>
+        <div class="drew">${d.endless ? '라운드마다 보상 · 보스 ' + ico('awk', 'ic sm') : `${rec.cleared ? '반복 보상' : '첫 클리어'} ${ico('ruby', 'ic sm')}${rec.cleared ? Math.floor(d.clearRuby * 0.2) : d.clearRuby}${d.drop.awk ? ` · 보스 ${ico('awk', 'ic sm')}` : ''}`}</div>
+        ${unlocked ? '' : `<div class="lockmsg">🔒 ${d.endless ? '쉬움 클리어 필요' : '이전 난이도 클리어 필요'}</div>`}
         ${rec.cleared ? '<div class="stamp">CLEAR</div>' : ''}
         <div class="dbtns">${cp ? `<button class="btn cont">이어하기 R${cp.wave}</button>` : ''}<button class="btn go">${cp ? '새로 시작' : '출전'}</button></div>`;
       if (unlocked) {
@@ -427,6 +560,7 @@ const UI = {
       rw.ruby += first ? D.clearRuby : Math.floor(D.clearRuby * 0.2);
       rw.gold += Math.round(500 * D.gold * D.rounds / 30);
       rec.cleared = true; rec.clears = (rec.clears || 0) + 1;
+      this.game.countMax('clear_' + D.id, 1);
     }
     this.game.grant(rw);
     S.stats.battles = (S.stats.battles || 0) + 1;
@@ -438,7 +572,7 @@ const UI = {
       <div class="result">
         ${mvp ? `<div class="mvp"><img src="${portraitURL(mvp, S.heroes[mvpId] && S.heroes[mvpId].awake, 128)}" alt=""><span>MVP</span><b>${mvp.name}</b><small>${fmt(b.stats[mvpId])} 피해</small></div>` : ''}
         <div class="rinfo">
-          <p>${D.name} · <b>ROUND ${win ? D.rounds : b.wave}</b> / ${D.rounds} ${win ? '클리어!' : '에서 함락'}</p>
+          <p>${D.endless ? `무한 방어전 · <b>${b.wave - 1} 라운드</b> 돌파!${b.wave - 1 >= (rec.best || 0) && b.wave > 1 ? ' <span class="first">최고 기록!</span>' : ''}` : `${D.name} · <b>ROUND ${win ? D.rounds : b.wave}</b> / ${D.rounds} ${win ? '클리어!' : '에서 함락'}`}</p>
           <div class="rewards">
             <div>${ico('gold')}<b>${fmt(rw.gold)}</b></div><div>${ico('ruby')}<b>${fmt(rw.ruby)}</b></div>
             <div>${ico('evo')}<b>${rw.evo}</b></div><div>${ico('awk')}<b>${rw.awk}</b></div>
@@ -453,11 +587,27 @@ const UI = {
     ], { cancelable: false, cls: win ? 'win' : 'lose' });
   },
 
+  // ───────── 튜토리얼 (첫 전투) ─────────
+  tutorial(step, b) {
+    const S = this.game.save;
+    if (S.tutorialDone) { $('#tut').hidden = true; return; }
+    const box = $('#tut'), txt = $('#tutText'), ar = $('#tutArrow');
+    const tb = $('.tbox', box); const at = (x, y, text, below) => { box.hidden = false; txt.innerHTML = text; const lx = clamp(x - 170, 10, W - 350); tb.style.left = lx + 'px'; tb.style.top = (below ? y + 30 : y - 120) + 'px'; ar.style.left = (x - lx - 14) + 'px'; ar.className = 'tarrow' + (below ? ' up' : ''); };
+    if (step === 'start') { if (!b || b.diff.id !== 'easy' || b.wave !== 1 || b.heroes.length) return; this.tutStep = 1; const c = $('#bParty .pcard'); if (c) { const r = c.getBoundingClientRect(), st = $('#stage').getBoundingClientRect(), k = st.width / W; at((r.left - st.left + r.width / 2) / k, (r.top - st.top) / k, '<b>1.</b> 영웅 카드를 눌러 선택하세요'); } }
+    else if (step === 'selected' && this.tutStep === 1) { this.tutStep = 2; at(750, 240 - 20, '<b>2.</b> 빛나는 <b>돌 원판</b>을 눌러 배치하세요.<br><small>길 가까이에 두면 적을 더 오래 공격해요</small>'); }
+    else if (step === 'deployed' && this.tutStep === 2) { this.tutStep = 3; at(1180, 596 - 110, '<b>3.</b> 준비가 되면 <b>전투 시작</b>!<br><small>적을 처치하면 보급(파란 수정)이 쌓여요</small>'); }
+    else if (step === 'started' && this.tutStep === 3) {
+      this.tutStep = 4; at(640, 330, '배치한 영웅을 누르면 <b>강화 · 이동 · 회수</b>, 카드를 누르면 <b>스킬</b>을 쓸 수 있어요.<br><small>마지막 라운드까지 성을 지켜내세요!</small>');
+      setTimeout(() => { box.hidden = true; }, 6000);
+      S.tutorialDone = true; this.game.persist();
+    }
+  },
+
   // ───────── 설정 ─────────
   settingsHtml() {
     const s = this.game.save.settings;
     const row = (k, label) => `<label class="opt"><span>${label}</span><input type="checkbox" data-set="${k}" ${s[k] !== false ? 'checked' : ''}><i></i></label>`;
-    return row('sfx', '효과음') + row('bgm', '배경 음악') + row('dmgText', '데미지 숫자');
+    return row('sfx', '효과음') + row('bgm', '배경 음악') + row('dmgText', '데미지 숫자') + row('hq', '고화질 그래픽 (끄면 가벼워짐)');
   },
   bindSettings() {
     $$('[data-set]').forEach(inp => inp.addEventListener('change', () => {
@@ -469,7 +619,7 @@ const UI = {
     const S = this.game.save;
     this.modal('설정', `<div class="opts">${this.settingsHtml()}</div>
       <p class="hint">진행 상황은 자동 저장됩니다 · 소환 ${S.stats.summons || 0}회 · 전투 ${S.stats.battles || 0}회</p>
-      <p class="hint small">수호기사 방어전 v1.0 · 비공식 팬메이드 게임입니다. 캐릭터 · 그림 · 음악은 모두 직접 코드로 그렸습니다.</p>`, [
+      <p class="hint small">수호기사 방어전 v2.0 · 비공식 팬메이드 게임입니다. 캐릭터 · 그림 · 음악은 모두 직접 코드로 그렸습니다.</p>`, [
       { t: '데이터 초기화', cls: 'ghost danger', keep: true, fn: () => this.modal('데이터 초기화', '<p>모든 영웅과 진행 상황이 삭제됩니다.<br><b>정말 초기화할까요?</b></p>', [
         { t: '취소', cls: 'ghost' }, { t: '초기화', cls: 'danger', fn: () => { this.game.reset(); } }]) },
       { t: '닫기' },
@@ -671,3 +821,30 @@ const UI = {
     if (Math.random() < 0.3 + power) this.sceneFx.part({ x: W / 2 + rand(-200, 200), y: H * 0.65, vy: rand(-180, -60) * power, color: col.startsWith('#') ? col : '#ffffff', life: 1.2, size: rand(2, 4), drag: 1 });
   },
 };
+
+// 장비 아이콘
+function drawGearIcon(c, k, def, lv) {
+  const E = ELEMS[def.elem];
+  const tier = lv >= 15 ? '#ff7ae6' : lv >= 10 ? '#ffd23f' : lv >= 5 ? '#c77dff' : '#5cc8ff';
+  c.clearRect(0, 0, 64, 64);
+  const g = c.createRadialGradient(32, 28, 4, 32, 32, 40); g.addColorStop(0, shade(tier, -0.1)); g.addColorStop(1, shade(tier, -0.65));
+  pathRR(c, 2, 2, 60, 60, 12); c.fillStyle = g; c.fill(); c.lineWidth = 3; c.strokeStyle = tier; c.stroke();
+  c.save(); c.translate(32, 32);
+  if (k === 'w') {
+    c.rotate(-0.8);
+    c.beginPath(); c.moveTo(-4, -6); c.lineTo(22, -4); c.lineTo(28, 0); c.lineTo(22, 4); c.lineTo(-4, 6); c.closePath();
+    fillStroke(c, vgrad(c, -6, 6, '#ffffff', shade(E.color, 0.2)), 1.8);
+    c.beginPath(); c.rect(-8, -11, 4, 22); fillStroke(c, '#ffd23f', 1.6);
+    capsule(c, -22, 0, -8, 0, 3, '#6a3a24');
+  } else if (k === 'r') {
+    c.beginPath(); c.arc(0, 4, 15, 0, TAU); c.arc(0, 4, 10, 0, TAU, true); c.fillStyle = '#ffd23f'; c.fill('evenodd'); c.lineWidth = 1.8; c.strokeStyle = '#6a4a00'; c.stroke();
+    c.beginPath(); c.moveTo(0, -22); c.lineTo(9, -12); c.lineTo(0, -4); c.lineTo(-9, -12); c.closePath(); fillStroke(c, vgrad(c, -22, -4, '#ffffff', E.color), 1.6);
+  } else {
+    c.beginPath(); c.moveTo(-12, -20); c.quadraticCurveTo(0, -24, 12, -20); c.quadraticCurveTo(20, 6, 18, 22); c.quadraticCurveTo(6, 18, 0, 24); c.quadraticCurveTo(-6, 18, -18, 22); c.quadraticCurveTo(-20, 6, -12, -20); c.closePath();
+    fillStroke(c, vgrad(c, -24, 24, shade(E.color, 0.2), shade(E.color, -0.4)), 1.8);
+    c.strokeStyle = '#ffd23f'; c.lineWidth = 2; c.beginPath(); c.moveTo(-12, -20); c.quadraticCurveTo(0, -24, 12, -20); c.stroke();
+    c.fillStyle = '#ffd23f'; star5(c, 0, -14, 4, 1.8); c.fill();
+  }
+  c.restore();
+  if (lv > 0) { c.font = '18px "Black Han Sans", sans-serif'; c.textAlign = 'right'; c.lineWidth = 3; c.strokeStyle = '#000'; c.strokeText('+' + lv, 60, 60); c.fillStyle = '#fff'; c.fillText('+' + lv, 60, 60); }
+}

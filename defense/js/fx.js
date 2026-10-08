@@ -2,13 +2,15 @@
 // ───────────────────────── 이펙트 · 파티클 · 데미지 숫자 ─────────────────────────
 
 class FX {
+  static get cap() { return FX._cap || 900; }
+  static set cap(v) { FX._cap = v; }
   constructor() { this.parts = []; this.effects = []; this.texts = []; this.shake = 0; }
 
   clear() { this.parts.length = 0; this.effects.length = 0; this.texts.length = 0; }
 
   // ── 파티클 ──
   part(o) {
-    if (this.parts.length > 900) return;
+    if (this.parts.length > FX.cap) return;
     this.parts.push(Object.assign({ x: 0, y: 0, vx: 0, vy: 0, g: 0, drag: 0.9, life: 0.6, t: 0, size: 3, color: '#fff', kind: 'spark', rot: 0, vr: 0, add: true, shrink: true }, o));
   }
   burst(x, y, color, n = 12, speed = 160, o = {}) {
@@ -64,6 +66,7 @@ class FX {
       const s = p.shrink ? p.size * (0.4 + 0.6 * k) : p.size;
       c.fillStyle = p.color;
       switch (p.kind) {
+        case 'drop': c.beginPath(); c.ellipse(p.x, p.y, s * 0.7, s * 1.1, 0, 0, TAU); c.fill(); break;
         case 'leaf': c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.beginPath(); c.ellipse(0, 0, s * 1.6, s * 0.7, 0, 0, TAU); c.fill(); c.restore(); break;
         case 'shard': c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.beginPath(); c.moveTo(0, -s * 1.8); c.lineTo(s * 0.7, 0); c.lineTo(0, s * 1.8); c.lineTo(-s * 0.7, 0); c.closePath(); c.fill(); c.restore(); break;
         case 'smoke': c.globalAlpha = k * 0.35; c.beginPath(); c.arc(p.x, p.y, p.size * (1.6 - k), 0, TAU); c.fill(); break;
@@ -293,6 +296,32 @@ const FX_DRAW = {
     const g = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.7);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, rgba(e.color || '#ff0000', a));
     c.fillStyle = g; c.fillRect(0, 0, W, H);
+  },
+  // 물대포 · 빛줄기 (직선)
+  beam(c, e, p) {
+    const a = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;
+    const ang = Math.atan2(e.y2 - e.y, e.x2 - e.x), len = Math.hypot(e.x2 - e.x, e.y2 - e.y);
+    c.translate(e.x, e.y); c.rotate(ang);
+    c.globalCompositeOperation = 'lighter';
+    const w = e.w * (0.6 + a * 0.4);
+    const g = c.createLinearGradient(0, -w, 0, w);
+    g.addColorStop(0, rgba(e.color, 0)); g.addColorStop(0.3, rgba(e.color, 0.7 * a)); g.addColorStop(0.5, rgba('#ffffff', a)); g.addColorStop(0.7, rgba(e.color, 0.7 * a)); g.addColorStop(1, rgba(e.color, 0));
+    c.fillStyle = g; c.fillRect(0, -w, len, w * 2);
+    for (let i = 0; i < 6; i++) { const x = ((e.t * 900 + i * 90) % len); c.fillStyle = rgba(e.light, a * 0.8); c.beginPath(); c.ellipse(x, Math.sin(i * 3 + e.t * 20) * w * 0.4, 14, 3, 0, 0, TAU); c.fill(); }
+    radial(c, 0, 0, w * 1.6, '#ffffff', e.color, a);
+  },
+  // 회전 칼날 바람 (라일라)
+  whirl(c, e, p) {
+    const fade = p < 0.08 ? p / 0.08 : p > 0.9 ? (1 - p) / 0.1 : 1;
+    c.translate(e.x, e.y + 30); c.scale(1, 0.5);
+    c.globalAlpha = fade; c.globalCompositeOperation = 'lighter';
+    c.rotate(e.t * 9);
+    for (let i = 0; i < 6; i++) {
+      c.rotate(TAU / 6);
+      c.fillStyle = rgba(i % 2 ? '#b8ffcf' : '#3ad17a', 0.65);
+      c.beginPath(); c.arc(0, 0, e.r * 1.6, 0, 0.7); c.arc(0, 0, e.r * 1.2, 0.7, 0, true); c.closePath(); c.fill();
+    }
+    radial(c, 0, 0, e.r * 1.8, '#e0fff0', '#3ad17a', 0.18 * fade);
   },
   // 그림자 칼날 (암살자 스킬)
   xslash(c, e, p) {

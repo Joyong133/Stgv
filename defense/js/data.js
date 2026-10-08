@@ -45,7 +45,7 @@ const lvCost = lv => Math.floor(20 + lv * lv * 1.5);
 const HEROES = [
   // ── 불 ──
   { id: 'leon', name: '레온', title: '홍염의 검사', elem: 'fire', role: 'melee', weapon: 'sword',
-    atk: 33, aspd: 0.95, anim: 'slash', shot: null,
+    atk: 35, aspd: 0.95, anim: 'slash', shot: null,
     skill: { name: '홍련참', cd: 11, desc: '불꽃 초승달을 휘둘러 범위 안 모든 적에게 공격력의 400% 피해와 화상을 입힌다.' },
     askill: { name: '홍련 폭풍참', desc: '범위가 넓어지고 600% 피해 + 강한 화상, 두 번 연속으로 벤다.' },
     normal: '베기 공격이 주변 적에게도 60% 피해를 준다.',
@@ -138,6 +138,37 @@ const HEROES = [
     askill: { name: '심연의 처형', desc: '8번 연속 공격.' },
     normal: '쌍검으로 두 번 베고 치명타 확률이 높다.',
     look: { skin: '#d9b9a0', hair: '#cfcfe8', hairStyle: 'spiky', eye: '#b84dff', c1: '#20182a', c2: '#4a3a5a', trim: '#a64dff', body: 'light', extras: ['mask', 'scarfDark'] } },
+  // ── 추가 영웅 ──
+  { id: 'ignis', name: '이그니스', title: '작열의 권사', elem: 'fire', role: 'melee', weapon: 'gauntlet',
+    atk: 26, aspd: 1.35, anim: 'punch', shot: null,
+    skill: { name: '화룡승천권', cd: 12, desc: '불꽃 어퍼컷으로 목표에게 450%, 주변에 250% 피해를 주고 1초간 띄운다(기절).' },
+    askill: { name: '진·화룡승천권', desc: '목표 700%, 주변 400% 피해, 1.5초 기절 + 화상.' },
+    normal: '빠른 원투 펀치. 맞은 적을 살짝 밀어낸다.',
+    look: { skin: '#f0c49c', hair: '#ff7a2a', hairStyle: 'spiky', eye: '#ffb02e', c1: '#f4ead6', c2: '#c4281b', trim: '#ffcf3f', body: 'light', skirt: '#2a2a3a', extras: ['headband'] } },
+  { id: 'marin', name: '마린', title: '대해의 총잡이', elem: 'water', role: 'ranged', weapon: 'gun',
+    atk: 25, aspd: 1.05, anim: 'shoot', shot: 'bullet',
+    skill: { name: '해신의 포격', cd: 13, desc: '거대한 물대포를 쏴 일직선의 모든 적에게 350% 피해와 40% 둔화.' },
+    askill: { name: '대해일 포격', desc: '550% 피해, 60% 둔화, 3번째 적까지 넘어뜨린다(기절).' },
+    normal: '사거리가 길고, 3발마다 관통탄을 쏜다.',
+    look: { skin: '#f6d6bc', hair: '#1d3a6a', hairStyle: 'pony', eye: '#2fb4ff', c1: '#1e4f8a', c2: '#f2ece0', trim: '#ffcf3f', body: 'coat', extras: ['pirateHat'] } },
+  { id: 'laila', name: '라일라', title: '선풍의 무희', elem: 'wind', role: 'ranged', weapon: 'chakram',
+    atk: 19, aspd: 1.0, anim: 'throw', shot: 'chakram',
+    skill: { name: '선풍의 춤', cd: 14, desc: '칼날 바람을 두르고 4초 동안 범위 안 적에게 0.3초마다 35% 피해.' },
+    askill: { name: '천풍의 군무', desc: '6초 동안 50% 피해, 적을 조금씩 밀어낸다.' },
+    normal: '차크람이 적 3명까지 튕긴다.',
+    look: { skin: '#f8e0c8', hair: '#3ac4a8', hairStyle: 'long', eye: '#2affb0', c1: '#2fae8a', c2: '#ffe9c4', trim: '#ffd23f', body: 'light', skirt: '#ffe9c4', extras: ['veil', 'elfEars'] } },
+  { id: 'arthur', name: '아서', title: '성검의 기사왕', elem: 'light', role: 'melee', weapon: 'greatsword',
+    atk: 43, aspd: 0.65, anim: 'slash', shot: null,
+    skill: { name: '엑스칼리버', cd: 14, desc: '성검의 빛을 해방해 범위 안 모든 적에게 500% 피해.' },
+    askill: { name: '약속된 승리의 검', desc: '800% 피해 + 모든 영웅 공격력 20% 증가 (5초).' },
+    normal: '대검이 넓은 범위를 벤다 (주변 80%).',
+    look: { skin: '#ffe0bd', hair: '#ffd86b', hairStyle: 'short', eye: '#3a8aff', c1: '#2a4a9a', c2: '#e8eef8', trim: '#ffd23f', body: 'armor', armorCol: '#eef2fa', capeCol: '#2a4a9a', extras: ['cape', 'crown'] } },
+  { id: 'morgan', name: '모르간', title: '망자의 강령술사', elem: 'dark', role: 'magic', weapon: 'book',
+    atk: 26, aspd: 0.75, anim: 'cast', shot: 'soulbolt',
+    skill: { name: '망령 군단', cd: 13, desc: '망령 8마리를 풀어 적을 쫓아가며 각각 200% 피해를 준다.' },
+    askill: { name: '사령의 행진', desc: '망령 14마리, 각각 240% 피해.' },
+    normal: '영혼탄이 25% 확률로 적을 공포(0.6초 기절)에 빠뜨린다.',
+    look: { skin: '#eadfe6', hair: '#d8d8e8', hairStyle: 'long', eye: '#7dffb0', c1: '#1f2a24', c2: '#5a1a3a', trim: '#7dffb0', body: 'robe', extras: ['skullPin'] } },
 ];
 const HERO_BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
 const STARTERS = ['leon', 'yuki', 'sylph'];
@@ -152,6 +183,9 @@ const ENEMIES = {
   wolf:     { name: '늑대',     hp: 0.9, spd: 108, size: 1.0, dmg: 1, gold: 1 },
   bat:      { name: '박쥐',     hp: 0.65, spd: 118, size: 0.9, dmg: 1, gold: 1, fly: true },
   orc:      { name: '오크 전사', hp: 2.8, spd: 50,  size: 1.2, dmg: 2, gold: 2 },
+  ghost:    { name: '유령',     hp: 0.9, spd: 72,  size: 1.0, dmg: 1, gold: 1, fly: true, evade: 0.3, desc: '일반 공격을 30% 확률로 회피' },
+  shaman:   { name: '고블린 주술사', hp: 1.2, spd: 54, size: 1.0, dmg: 1, gold: 2, healer: true, desc: '주변 적을 치유' },
+  beetle:   { name: '철갑충',   hp: 2.2, spd: 46,  size: 1.15, dmg: 2, gold: 2, armor: 0.4, desc: '일반 공격 피해 40% 감소 (마법형 · 스킬은 무시)' },
   knight:   { name: '흑기사',   hp: 6,   spd: 56,  size: 1.25, dmg: 3, gold: 4, elite: true },
   golem:    { name: '골렘',     hp: 9,   spd: 38,  size: 1.4, dmg: 4, gold: 5, elite: true },
   // 보스
@@ -175,14 +209,17 @@ const DIFFS = [
   { id: 'hell',   name: '헬',     rounds: 100, hp: 3.2, gold: 3.2, color: '#ff2a4a', map: 'inferno', castle: 20, startSupply: 16,
     clearRuby: 2500, drop: { evo: 5, awk: 4 }, desc: '불타는 마계 관문. 어려움을 클리어하면 열립니다.' },
 ];
-const DIFF_BY_ID = Object.fromEntries(DIFFS.map(d => [d.id, d]));
+// 무한 방어전: 끝없이 강해지는 적. 쉬움을 클리어하면 열린다.
+const ENDLESS = { id: 'endless', name: '무한', rounds: 9999, hp: 1.9, gold: 2.2, color: '#c77dff', map: 'night', castle: 20, startSupply: 16,
+  clearRuby: 0, drop: { evo: 3, awk: 1 }, desc: '끝없는 밤의 전장. 몇 라운드까지 버틸 수 있을까?', endless: true };
+const DIFF_BY_ID = Object.fromEntries(DIFFS.concat([ENDLESS]).map(d => [d.id, d]));
 
 // 라운드에 따른 적 체력 배율
 const waveScale = n => 1 + 0.15 * (n - 1) + 0.0048 * (n - 1) * (n - 1);
 
 // 라운드 구성
 function makeWave(n, diff) {
-  const final = n === diff.rounds;
+  const final = !diff.endless && n === diff.rounds;
   const boss = final || n % 10 === 0;
   const elite = !boss && n % 5 === 0;
   const elems = ELEM_ORDER;
@@ -191,7 +228,10 @@ function makeWave(n, diff) {
   if (n >= 3) pool.push('skeleton');
   if (n >= 6) pool.push('wolf');
   if (n >= 8) pool.push('bat');
+  if (n >= 9) pool.push('ghost');
   if (n >= 11) pool.push('orc');
+  if (n >= 13) pool.push('shaman');
+  if (n >= 18) pool.push('beetle');
   if (n >= 16) pool.push('knight');
   if (n >= 22) pool.push('golem');
   const list = [];
@@ -232,3 +272,60 @@ function heroPower(def, h) { return Math.floor(heroAtk(def, h) * def.aspd * (def
 const SUMMON_RATES = [{ star: 3, p: 0.70 }, { star: 4, p: 0.24 }, { star: 5, p: 0.05 }, { star: 6, p: 0.01 }];
 const SUMMON_COST = { one: 100, ten: 900 };
 const DUPE_EVO = { 3: 5, 4: 12, 5: 30, 6: 60 };    // 중복 획득 시 진화석
+
+// ───────────────────────── 장비 ─────────────────────────
+// 영웅마다 무기(공격력) · 반지(공격 속도) · 망토(치명타) 3칸, 최대 +15
+const GEAR = {
+  w: { name: '무기', stat: '공격력', per: 0.06, fmt: v => '+' + Math.round(v * 100) + '%' },
+  r: { name: '반지', stat: '공격 속도', per: 0.025, fmt: v => '+' + (v * 100).toFixed(1) + '%' },
+  c: { name: '망토', stat: '치명타 확률', per: 0.015, fmt: v => '+' + (v * 100).toFixed(1) + '%' },
+};
+const GEAR_MAX = 15;
+const gearCost = lv => ({ gold: 300 * (lv + 1) * (lv + 1), evo: lv >= 10 ? (lv - 9) * 2 : 0 });
+const gearOf = h => h.gear || { w: 0, r: 0, c: 0 };
+
+// 도감 보너스: 보유 영웅 1명당 공격력 +1%, 각성 영웅 1명당 +2%
+function collectionBonus(save) {
+  let b = 0;
+  for (const id in save.heroes) b += save.heroes[id].awake ? 0.03 : 0.01;
+  return b;
+}
+
+// ───────────────────────── 상점 ─────────────────────────
+const SHOP = [
+  { id: 'free', name: '오늘의 무료 루비', give: { ruby: 50 }, cost: null, limit: 1 },
+  { id: 'gold', name: '골드 꾸러미', give: { gold: 20000 }, cost: { ruby: 100 }, limit: 5 },
+  { id: 'evo', name: '진화석 상자', give: { evo: 10 }, cost: { ruby: 150 }, limit: 5 },
+  { id: 'awk', name: '각성석 상자', give: { awk: 5 }, cost: { ruby: 300 }, limit: 3 },
+  { id: 'goldEvo', name: '진화석 (골드)', give: { evo: 5 }, cost: { gold: 30000 }, limit: 3 },
+];
+
+// ───────────────────────── 임무 · 업적 ─────────────────────────
+const DAILY_MISSIONS = [
+  { id: 'd_round', name: '방어전 라운드 15회 클리어', key: 'rounds', goal: 15, give: { ruby: 30 } },
+  { id: 'd_kill', name: '적 300마리 처치', key: 'kills', goal: 300, give: { ruby: 30 } },
+  { id: 'd_lv', name: '영웅 레벨업 10회', key: 'levelups', goal: 10, give: { gold: 5000 } },
+  { id: 'd_sum', name: '영웅 소환 1회', key: 'summons', goal: 1, give: { evo: 5 } },
+  { id: 'd_skill', name: '스킬 20회 사용', key: 'skills', goal: 20, give: { ruby: 20 } },
+  { id: 'd_gear', name: '장비 강화 3회', key: 'gearups', goal: 3, give: { gold: 5000 } },
+];
+const DAILY_ALL = { id: 'd_all', name: '일일 임무 모두 완료', give: { ruby: 60, awk: 2 } };
+const ACHIEVEMENTS = [
+  { id: 'a_easy', name: '쉬움 클리어', key: 'clear_easy', goal: 1, give: { ruby: 200 } },
+  { id: 'a_normal', name: '보통 클리어', key: 'clear_normal', goal: 1, give: { ruby: 400 } },
+  { id: 'a_hard', name: '어려움 클리어', key: 'clear_hard', goal: 1, give: { ruby: 800, awk: 10 } },
+  { id: 'a_hell', name: '헬 클리어', key: 'clear_hell', goal: 1, give: { ruby: 1500, awk: 30 } },
+  { id: 'a_boss1', name: '보스 10마리 처치', key: 'bosses', goal: 10, give: { ruby: 100 } },
+  { id: 'a_boss2', name: '보스 50마리 처치', key: 'bosses', goal: 50, give: { ruby: 300 } },
+  { id: 'a_boss3', name: '보스 200마리 처치', key: 'bosses', goal: 200, give: { ruby: 800 } },
+  { id: 'a_kill1', name: '적 1,000마리 처치', key: 'kills', goal: 1000, give: { ruby: 100 } },
+  { id: 'a_kill2', name: '적 10,000마리 처치', key: 'kills', goal: 10000, give: { ruby: 300 } },
+  { id: 'a_kill3', name: '적 50,000마리 처치', key: 'kills', goal: 50000, give: { ruby: 800 } },
+  { id: 'a_col1', name: '영웅 10명 모으기', key: 'heroes', goal: 10, give: { ruby: 300 } },
+  { id: 'a_col2', name: '영웅 20명 모두 모으기', key: 'heroes', goal: 20, give: { ruby: 1000 } },
+  { id: 'a_awk1', name: '영웅 1명 각성', key: 'awakened', goal: 1, give: { awk: 10 } },
+  { id: 'a_awk2', name: '영웅 6명 각성', key: 'awakened', goal: 6, give: { ruby: 1000 } },
+  { id: 'a_end1', name: '무한 방어전 30라운드', key: 'endless', goal: 30, give: { ruby: 300 } },
+  { id: 'a_end2', name: '무한 방어전 80라운드', key: 'endless', goal: 80, give: { ruby: 1000, awk: 20 } },
+];
+const ATTENDANCE = [{ ruby: 100 }, { gold: 10000 }, { evo: 10 }, { ruby: 150 }, { awk: 5 }, { gold: 30000 }, { ruby: 300, awk: 5 }];

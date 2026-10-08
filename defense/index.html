@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>수호기사 방어전</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="stage">
+
+  <!-- 타이틀 -->
+  <section id="title" class="screen">
+    <canvas id="tcv"></canvas>
+    <div class="logo">
+      <div class="logo-sub">GUARDIAN KNIGHTS</div>
+      <h1>수호기사<span>방어전</span></h1>
+    </div>
+    <div class="tap">화면을 터치하세요</div>
+    <div class="copy">비공식 팬메이드 · 모든 그림과 소리는 코드로 직접 제작</div>
+  </section>
+
+  <!-- 로비 -->
+  <section id="lobby" class="screen">
+    <canvas id="lcv"></canvas>
+    <header class="topbar">
+      <div class="cur"><i class="ic" style="background-image:var(--i-gold)"></i><b class="cur-gold">0</b></div>
+      <div class="cur"><i class="ic" style="background-image:var(--i-ruby)"></i><b class="cur-ruby">0</b></div>
+      <div class="cur"><i class="ic" style="background-image:var(--i-evo)"></i><b class="cur-evo">0</b></div>
+      <div class="cur"><i class="ic" style="background-image:var(--i-awk)"></i><b class="cur-awk">0</b></div>
+      <button id="mSettings" class="iconbtn" aria-label="설정">⚙</button>
+    </header>
+    <div class="lb-hero">
+      <div id="lbName" class="lb-name"></div>
+      <div id="lbStars" class="stars big"></div>
+    </div>
+    <div id="lbRecord" class="lb-record"></div>
+    <nav class="menu">
+      <button id="mBattle" class="mbtn battle"><b>방어전</b><small id="mBattleSub">성을 지켜라!</small></button>
+      <div class="mrow">
+        <button id="mHeroes" class="mbtn"><b>영웅</b><small>성장 · 진화 · 각성</small></button>
+        <button id="mParty" class="mbtn"><b>편성</b><small>출전 영웅 6명</small></button>
+      </div>
+      <button id="mSummon" class="mbtn summon"><b>영웅 소환</b><small>루비로 새 영웅 획득</small></button>
+    </nav>
+  </section>
+
+  <!-- 영웅 목록 -->
+  <section id="heroes" class="screen panelbg">
+    <header class="subbar">
+      <button class="backbtn" data-back aria-label="뒤로">◀</button><h2>영웅</h2><span id="heroCount" class="count"></span>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-gold)"></i><b class="cur-gold"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-evo)"></i><b class="cur-evo"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-awk)"></i><b class="cur-awk"></b></span></div>
+    </header>
+    <div class="ftabs">
+      <button class="ftab" data-f="all">전체</button>
+      <button class="ftab e-fire" data-f="fire">불</button>
+      <button class="ftab e-water" data-f="water">물</button>
+      <button class="ftab e-wind" data-f="wind">바람</button>
+      <button class="ftab e-light" data-f="light">빛</button>
+      <button class="ftab e-dark" data-f="dark">어둠</button>
+    </div>
+    <div id="heroGrid" class="hgrid"></div>
+  </section>
+
+  <!-- 영웅 상세 -->
+  <section id="detail" class="screen">
+    <canvas id="dcv"></canvas>
+    <header class="subbar clear">
+      <button class="backbtn" data-back aria-label="뒤로">◀</button>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-gold)"></i><b class="cur-gold"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-evo)"></i><b class="cur-evo"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-awk)"></i><b class="cur-awk"></b></span></div>
+    </header>
+    <button id="dPrev" class="navbtn l" aria-label="이전 영웅">‹</button>
+    <button id="dNext" class="navbtn r" aria-label="다음 영웅">›</button>
+    <div class="demo"><button id="dAtk" class="btn sm ghost">공격 보기</button><button id="dSkill" class="btn sm ghost">스킬 보기</button></div>
+    <div class="dpanel">
+      <div id="dName" class="dname"></div>
+      <div id="dTags" class="dtags"></div>
+      <div class="lvrow"><span id="dLvTxt"></span><div class="lvbar"><i id="dLvBar"></i></div></div>
+      <div id="dStats" class="dstats"></div>
+      <div id="dSkills" class="dskills"></div>
+      <div class="dbtns">
+        <button id="dLv1" class="btn"></button>
+        <button id="dLv10" class="btn"></button>
+        <button id="dEvo" class="btn evo"></button>
+      </div>
+      <div class="dbtns small">
+        <button id="dParty" class="btn ghost sm"></button>
+        <button id="dLeader" class="btn ghost sm">대표 영웅</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 소환 -->
+  <section id="summon" class="screen">
+    <canvas id="scv"></canvas>
+    <header class="subbar clear">
+      <button class="backbtn" data-back aria-label="뒤로">◀</button><h2>영웅 소환</h2>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-ruby)"></i><b class="cur-ruby"></b></span><span class="cur"><i class="ic" style="background-image:var(--i-evo)"></i><b class="cur-evo"></b></span></div>
+    </header>
+    <div class="sumbox">
+      <div id="sumRates" class="rates"></div>
+      <div class="sumbtns">
+        <button id="sumOne" class="btn big">1회 소환<span><i class="ic sm" style="background-image:var(--i-ruby)"></i>100</span></button>
+        <button id="sumTen" class="btn big gold">10회 소환<span><i class="ic sm" style="background-image:var(--i-ruby)"></i>900</span></button>
+      </div>
+      <p class="hint">10회 소환 시 4성 이상 1명 보장 · 이미 가진 영웅은 등급이 오르거나 진화석으로 바뀝니다</p>
+    </div>
+    <div id="sumResult" class="sumresult" hidden>
+      <div id="sumCards"></div>
+      <button id="sumClose" class="btn">확인</button>
+    </div>
+  </section>
+
+  <!-- 편성 -->
+  <section id="party" class="screen panelbg">
+    <header class="subbar"><button class="backbtn" data-back aria-label="뒤로">◀</button><h2>편성</h2></header>
+    <div id="ptSlots" class="ptslots"></div>
+    <div id="ptInfo" class="ptinfo"></div>
+    <div id="ptGrid" class="hgrid small"></div>
+  </section>
+
+  <!-- 난이도 선택 -->
+  <section id="select" class="screen panelbg">
+    <header class="subbar"><button class="backbtn" data-back aria-label="뒤로">◀</button><h2>방어전 · 난이도 선택</h2>
+      <div class="curs"><span class="cur"><i class="ic" style="background-image:var(--i-ruby)"></i><b class="cur-ruby"></b></span></div></header>
+    <div id="diffCards" class="dcards"></div>
+  </section>
+
+  <!-- 전투 -->
+  <section id="battle" class="screen">
+    <canvas id="bcv"></canvas>
+    <div class="bhud-top">
+      <div class="roundbox"><span id="bDiff" class="dbadge"></span><b id="bRound">ROUND 1</b><small id="bMax"></small></div>
+      <div class="castlebox"><span class="cico">🏰</span><div class="bar"><i id="bCastleBar"></i></div><span id="bCastleTxt"></span></div>
+      <div class="rbox">
+        <div class="pill"><i class="ic" style="background-image:var(--i-gold)"></i><b id="bGold">0</b></div>
+        <div class="pill supply"><i class="ic" style="background-image:var(--i-crys)"></i><b id="bSupply">0</b></div>
+        <button id="bAuto" class="hbtn">AUTO<small>스킬</small></button>
+        <button id="bNextAuto" class="hbtn">자동<small>진행</small></button>
+        <button id="bSpeed" class="hbtn">×1</button>
+        <button id="bPause" class="hbtn" aria-label="일시 정지">II</button>
+      </div>
+    </div>
+    <div id="bBoss" class="bossbar" hidden><span id="bBossName"></span><div class="bar"><i id="bBossFill"></i></div><span id="bBossHp"></span></div>
+    <div id="bWaveInfo" class="waveinfo" hidden></div>
+    <button id="bStart" class="startbtn" hidden>전투 시작</button>
+    <div id="bParty" class="bparty"></div>
+    <div id="bBanner" class="banner"></div>
+    <div id="bCut" class="cutin"></div>
+    <div id="bPop" class="hpop" hidden>
+      <div id="bPopName"></div>
+      <div id="bPopInfo" class="info"></div>
+      <div class="row"><button id="bPopUp" class="btn sm"></button><button id="bPopSkill" class="btn sm gold">스킬</button></div>
+      <button id="bPopBack" class="btn sm ghost"></button>
+    </div>
+  </section>
+
+  <!-- 공용 모달 · 알림 -->
+  <div id="modal" hidden>
+    <div class="mbox">
+      <h3 id="mdTitle"></h3>
+      <div id="mdBody"></div>
+      <div id="mdBtns" class="mbtns"></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/art.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -418,3 +418,7 @@ button:disabled { cursor: default; }
 #tut .tarrow { position: absolute; top: 100%; font-size: 30px; color: #ffcf3f; text-shadow: 0 2px 0 #6a3a00; animation: bob .8s infinite; }
 #tut .tarrow.up { top: -34px; transform: rotate(180deg); }
 @keyframes bob { 50% { margin-top: 8px; } }
+.hgrid { grid-auto-rows: 190px; }
+.hgrid .hcard { aspect-ratio: auto; height: 190px; }
+.hgrid.small { grid-auto-rows: 160px; }
+.hgrid.small .hcard { height: 160px; }

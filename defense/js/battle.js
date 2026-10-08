@@ -762,13 +762,40 @@ class Battle {
       case 'serena': this.shoot(hr, t, 'holybolt', atk, { crit }); Sound.play('magic'); break;
       case 'elysia': this.shoot(hr, t, 'holyspear', atk, { crit, pierce: true }); Sound.play('arrow'); break;
       case 'lilith': this.shoot(hr, t, 'darkorb', atk, { crit }); Sound.play('magic'); break;
+      default: this.genericAttack(hr, t, atk, crit, idx);
     }
+  }
+
+  // 데이터로 정의된 영웅의 기본 공격
+  genericAttack(hr, t, atk, crit, idx) {
+    const d = hr.def, E = ELEMS[d.elem];
+    if (d.shot) {
+      this.shoot(hr, t, d.shot, atk, { crit, pierce: !!d.pierceShot });
+      Sound.play(d.anim === 'bow' ? 'arrow' : d.anim === 'shoot' ? 'hit' : 'magic');
+      return;
+    }
+    this.damage(t, atk, hr, { crit });
+    this.applyOnHit(hr, t, d.onHit);
+    if (d.cleave) for (const o of this.enemiesIn(t.x, t.y, 64)) if (o !== t) this.damage(o, atk * d.cleave, hr);
+    if (d.pierce) for (const o of this.enemies.filter(o => !o.dead && o !== t && Math.abs(o.dist - t.dist) < 70 && dist(o.x, o.y, t.x, t.y) < 80).slice(0, 2)) { this.damage(o, atk * 0.7, hr); this.applyOnHit(hr, o, d.onHit); }
+    if (d.anim === 'thrust') this.fx.add('dashline', { x: hr.x + hr.face * 20, y: hr.y - 36, x2: t.x, y2: t.y - 24, color: E.color, dur: 0.22 });
+    else if (d.anim === 'dual') this.fx.add('xslash', { x: t.x, y: t.y - 26, rot: idx ? 0.7 : -0.7, dur: 0.25 });
+    else this.fx.add('slash', { x: t.x, y: t.y - 26, r: d.weapon === 'greatsword' ? 48 : 34, rot: hr.face > 0 ? 0.3 : Math.PI - 0.3, color: E.color, dur: 0.3 });
+    this.fx.elemBurst(t.x, t.y - 24, d.elem, 6, 120);
+    Sound.play(d.weapon === 'greatsword' ? 'heavy' : 'slash');
+  }
+  applyOnHit(hr, e, oh) {
+    if (!oh || !e || e.dead) return;
+    const atk = this.atkOf(hr);
+    if (oh.burn) { e.burnDps = Math.max(e.burnT > 0 ? e.burnDps : 0, atk * oh.burn); e.burnT = 2; }
+    if (oh.slow) this.slow(e, oh.slow, 1.2);
+    if (oh.curse) { e.curseMul = Math.max(e.curseT > 0 ? e.curseMul : 0, oh.curse); e.curseT = Math.max(e.curseT, 3); }
   }
 
   // ───────── 투사체 ─────────
   shoot(hr, t, kind, dmg, o = {}) {
     const h = this.handOf(hr);
-    const spd = { fireball: 520, waterorb: 560, darkorb: 520, holybolt: 640, windblade: 700, holyspear: 900, shuriken: 900, bullet: 1500, chakram: 760, soulbolt: 520 }[kind] || 980;
+    const spd = { fireball: 520, waterorb: 560, darkorb: 520, holybolt: 640, windblade: 700, holyspear: 900, shuriken: 900, bullet: 1500, chakram: 760, soulbolt: 520, orb: 580, spear: 950 }[kind] || 980;
     const p = { skill: !!this.skillCtx || !!o.skill, chain: o.chain || 0, kind, x: h.x, y: h.y, t: 0, target: t, tx: t.x, ty: t.y - 24, spd, dmg, crit: o.crit, src: hr, elem: hr.def.elem, trail: [], delay: o.delay || 0, pierce: o.pierce, hit: new Set(), travel: 0, rot: 0 };
     if (p.pierce) {
       const dx = t.x - h.x, dy = t.y - 24 - h.y, l = Math.hypot(dx, dy) || 1;
@@ -779,6 +806,8 @@ class Battle {
     if (o.slowAmt) p.slowAmt = o.slowAmt;
     if (o.stunN) p.stunN = o.stunN;
     if (o.width) p.width = o.width;
+    if (o.stunCh) p.stunCh = o.stunCh;
+    if (o.knockD) p.knockD = o.knockD;
     if (o.homingWobble) { p.wob = rand(0, TAU); }
     this.proj.push(p);
     return p;
@@ -798,6 +827,8 @@ class Battle {
           this.damage(e, p.dmg * (p.hit.size === 1 ? 1 : 0.8), p.src, { crit: p.crit && p.hit.size === 1 });
           this.skillCtx = prev;
           if (p.slowAmt) this.slow(e, p.slowAmt, 3);
+          if (p.knockD) this.knock(e, p.knockD);
+          this.applyOnHit(p.src, e, p.src.def.onHit);
           if (p.stunN && p.hit.size <= p.stunN) e.stunT = Math.max(e.stunT, e.boss ? 0.3 : 1);
           this.fx.elemBurst(e.x, e.y - 24, p.elem, 5, 100);
         }
@@ -865,15 +896,16 @@ class Battle {
         this.fx.add('flash', { x: p.x, y: p.y, r: 32, color: '#7dffb0', dur: 0.3 });
         this.fx.elemBurst(p.x, p.y, 'dark', 5, 90); return;
       case 'bullet':
-        if (at) this.damage(at, atk, src, { crit: p.crit });
+        if (at) { this.damage(at, atk, src, { crit: p.crit }); this.applyOnHit(src, at, src.def.onHit); }
         this.fx.burst(p.x, p.y, '#cff4ff', 5, 140, { kind: 'drop' });
         return;
       case 'skyarrow':
         for (const e of this.enemiesIn(p.x, p.y + 20, 34)) this.damage(e, atk, src);
         this.fx.elemBurst(p.x, p.y + 10, p.elem, 4, 80); return;
       default:
-        if (at) this.damage(at, atk, src, { crit: p.crit });
-        this.fx.elemBurst(p.x, p.y, p.elem, 4, 90);
+        if (at) { this.damage(at, atk, src, { crit: p.crit }); this.applyOnHit(src, at, src.def.onHit); if (p.stunCh && Math.random() < p.stunCh && !at.boss) at.stunT = Math.max(at.stunT, 0.5); if (p.knockD) this.knock(at, p.knockD); }
+        if (p.kind === 'orb') this.fx.add('flash', { x: p.x, y: p.y, r: 34, color: ELEMS[p.elem].color, dur: 0.28 });
+        this.fx.elemBurst(p.x, p.y, p.elem, 5, 100);
     }
   }
 
@@ -1088,6 +1120,7 @@ class Battle {
         Sound.play('dark');
         break;
       }
+      default: this.genericSkill(hr, tgt, aw, atk, R, E, inR); break;
       case 'ignis': {
         const t = tgt; if (!t) break;
         const x = t.x, y = t.y;
@@ -1155,6 +1188,125 @@ class Battle {
           Sound.play('crit');
         });
         hr.blink = n * 0.09 + 0.1;
+        break;
+      }
+    }
+  }
+
+  // skill.kind 로 정의된 스킬
+  genericSkill(hr, tgt, aw, atk, R, E, inR) {
+    const k = hr.def.skill, el = hr.def.elem, M = aw ? k.am : k.m, N = aw ? k.an : k.n;
+    const snd = { fire: 'fire', water: 'ice', wind: 'wind', light: 'holy', dark: 'dark' }[el];
+    const status = e => {
+      if (k.burn) { e.burnDps = atk * (aw ? k.burn * 1.5 : k.burn); e.burnT = 3; }
+      if (k.slow) this.slow(e, k.slow, 3);
+      if (k.curse) { e.curseMul = Math.max(e.curseT > 0 ? e.curseMul : 0, k.curse); e.curseT = 6; }
+      if (k.knock) this.knock(e, k.knock);
+    };
+    switch (k.kind) {
+      case 'nova': {
+        const r = R * (k.rk || 1.1);
+        for (const e of inR(r)) { this.damage(e, atk * M, hr); status(e); if (aw && k.slow) e.freezeT = Math.max(e.freezeT, e.boss ? 0.3 : 1); this.fx.elemBurst(e.x, e.y - 20, el, 5, 140); }
+        this.fx.add('ring', { x: hr.x, y: hr.y, r, color: E.light, w: 12, dur: 0.6, layer: 'ground' });
+        this.fx.add('flash', { x: hr.x, y: hr.y - 30, r: r * 0.7, color: E.color, dur: 0.5 });
+        if (el === 'water') this.fx.add('blizzard', { x: hr.x, y: hr.y, r: r * 0.8, dur: 1, layer: 'ground' });
+        this.fx.shake = 12; Sound.play('boom'); Sound.play(snd);
+        break;
+      }
+      case 'blast': {
+        const c0 = this.densest(inR(R * 1.2)) || tgt; if (!c0) break;
+        const x = c0.x, y = c0.y, r = k.r || 120;
+        this.fx.add('flash', { x, y: y - 20, r: r * 1.1, color: E.color, inner: '#ffffff', dur: 0.6 });
+        this.fx.add('tide', { x, y, r, dur: 0.8, layer: 'ground' });
+        for (const e of this.enemiesIn(x, y, r)) { this.damage(e, atk * M, hr); status(e); if (k.freeze) e.freezeT = Math.max(e.freezeT, (aw ? k.afreeze : k.freeze) * (e.boss ? 0.35 : 1)); }
+        this.fx.elemBurst(x, y - 20, el, 30, 260); Sound.play(snd);
+        break;
+      }
+      case 'line': {
+        const t = tgt || this.findTarget(hr, R * 1.2); if (!t) break;
+        const h = this.handOf(hr), dx = t.x - h.x, dy = t.y - 24 - h.y, l = Math.hypot(dx, dy) || 1, len = R * 1.6;
+        const x2 = h.x + dx / l * len, y2 = h.y + dy / l * len;
+        this.fx.add('beam', { x: h.x, y: h.y, x2, y2, w: aw ? 26 : 20, color: E.color, light: E.light, dur: 0.55 });
+        for (const e of this.enemies.filter(e => !e.dead && distSeg(e.x, e.y - 20, h.x, h.y, x2, y2) < 28)) { this.damage(e, atk * M, hr); status(e); this.fx.elemBurst(e.x, e.y - 20, el, 6, 150); }
+        hr.blink = 0.1; this.fx.shake = 8; Sound.play('heavy'); Sound.play(snd);
+        break;
+      }
+      case 'volley': {
+        for (let i = 0; i < N; i++) {
+          const list = inR(R * 1.2); if (!list.length) break;
+          const e = list[i % list.length];
+          const p = this.shoot(hr, e, k.shot || hr.def.shot || 'orb', atk * M, { delay: i * 0.05, pierce: k.shot === 'spear', knockD: k.knock });
+          p.skill = true;
+          if (k.burn) p.burnSkill = true;
+        }
+        Sound.play(snd);
+        break;
+      }
+      case 'rain': {
+        const c0 = tgt || hr;
+        for (let i = 0; i < N; i++) {
+          this.later(i * 0.045, () => {
+            const near = this.enemiesIn(c0.x, c0.y, 160);
+            const e = near.length ? pick(near) : null;
+            const x = e ? e.x + rand(-8, 8) : c0.x + rand(-80, 80), y = e ? e.y - 14 : c0.y + rand(-40, 40);
+            const p = { kind: 'skyarrow', x: x + 40, y: y - 380, t: 0, target: null, tx: x, ty: y, spd: 1500, dmg: atk * M, src: hr, elem: el, trail: [], delay: 0, hit: new Set(), travel: 0, rot: 0, skill: true };
+            this.proj.push(p);
+            if (e && k.stun && Math.random() < k.stun && !e.boss) e.stunT = Math.max(e.stunT, 0.6);
+            if (i % 3 === 0) Sound.play('arrow');
+          });
+        }
+        break;
+      }
+      case 'dash': {
+        const list = inR(R * 1.2).sort((a, b) => b.dist - a.dist).slice(0, N);
+        let px = hr.x, py = hr.y - 30;
+        list.forEach((e, i) => this.later(i * 0.06, () => {
+          this.fx.add('dashline', { x: px, y: py, x2: e.x, y2: e.y - 24, color: E.color, dur: 0.35 });
+          this.fx.add('xslash', { x: e.x, y: e.y - 24, rot: rand(-1, 1), dur: 0.3 });
+          px = e.x; py = e.y - 24;
+          this.damage(e, atk * M, hr, { crit: Math.random() < 0.3 }); status(e);
+          Sound.play('slash');
+        }));
+        hr.blink = 0.15 + list.length * 0.06;
+        break;
+      }
+      case 'execute': {
+        const t = this.strongest(inR(R * 1.2)) || tgt; if (!t) break;
+        this.fx.add('dashline', { x: hr.x, y: hr.y - 30, x2: t.x, y2: t.y - 24, color: E.color, dur: 0.3 });
+        for (let i = 0; i < N; i++) this.later(i * 0.085, () => {
+          if (t.dead) return;
+          this.damage(t, atk * M, hr, { crit: true });
+          this.fx.add('xslash', { x: t.x + rand(-8, 8), y: t.y - 26 + rand(-8, 8), rot: rand(-1.5, 1.5), dur: 0.3 });
+          this.fx.burst(t.x, t.y - 24, E.light, 4, 140, { kind: 'streak' });
+          Sound.play('crit');
+        });
+        hr.blink = N * 0.085 + 0.1;
+        break;
+      }
+      case 'meteor': {
+        let cand = inR(R * 1.2); if (!cand.length) cand = this.enemies.filter(e => !e.dead);
+        const targets = [];
+        for (let i = 0; i < N && cand.length; i++) { const c0 = this.densest(cand); targets.push({ x: c0.x, y: c0.y }); cand = cand.filter(e => dist(e.x, e.y, c0.x, c0.y) > 70); if (!cand.length) cand = inR(R * 1.2); }
+        targets.forEach((p, i) => this.later(i * 0.16, () => {
+          this.fx.add('meteor', { x: p.x, y: p.y - 10, r: 80, dur: 0.95, c1: E.light, c2: E.color });
+          this.later(0.52, () => {
+            for (const e of this.enemiesIn(p.x, p.y, 92)) { this.damage(e, atk * M, hr); status(e); }
+            this.fx.elemBurst(p.x, p.y - 10, el, 24, 260); this.fx.shake = 10; Sound.play('boom');
+          });
+        }));
+        break;
+      }
+      case 'buff': {
+        const heal = aw ? k.aheal : k.heal;
+        this.castle = Math.min(this.castleMax, this.castle + heal);
+        this.fx.add('heal', { x: CASTLE.x + 10, y: CASTLE.y - 40, r: 100, dur: 1 });
+        this.fx.text(CASTLE.x + 40, CASTLE.y - 110, '+' + heal, '#7dffb0', 28);
+        for (const h of this.heroes) {
+          h.buffT = Math.max(h.buffT, k.dur); h.buffAtk = Math.max(h.buffT > 0 ? h.buffAtk : 0, aw ? k.aatkB : k.atkB); h.buffAs = Math.max(h.buffAs || 0, k.asB || 0);
+          this.fx.add('bless', { x: h.x, y: h.y, dur: 1.2 });
+        }
+        this.fx.add('pillar', { x: hr.x, y: hr.y, w: 40, color: E.color, dur: 1 });
+        Sound.play('holy');
         break;
       }
     }
@@ -1319,14 +1471,14 @@ class Battle {
       }
       c.save(); c.translate(p.x, p.y); c.rotate(p.rot);
       switch (p.kind) {
-        case 'firearrow': case 'icearrow': case 'windarrow': case 'skyarrow': {
+        case 'firearrow': case 'icearrow': case 'windarrow': case 'skyarrow': case 'arrow': {
           c.globalCompositeOperation = 'lighter'; radial(c, 6, 0, 12, '#ffffff', E.color, 0.5); c.globalCompositeOperation = 'source-over';
           c.strokeStyle = '#5a3a22'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(-18, 0); c.lineTo(8, 0); c.stroke();
           c.fillStyle = E.light; c.beginPath(); c.moveTo(14, 0); c.lineTo(6, -4); c.lineTo(6, 4); c.closePath(); c.fill(); c.strokeStyle = OL; c.lineWidth = 1; c.stroke();
           c.fillStyle = E.color; c.beginPath(); c.moveTo(-18, 0); c.lineTo(-24, -4); c.lineTo(-14, 0); c.lineTo(-24, 4); c.closePath(); c.fill();
           break;
         }
-        case 'fireball': case 'waterorb': case 'darkorb': case 'holybolt': {
+        case 'fireball': case 'waterorb': case 'darkorb': case 'holybolt': case 'orb': {
           c.globalCompositeOperation = 'lighter';
           radial(c, 0, 0, p.kind === 'fireball' ? 22 : 16, '#ffffff', E.color, 0.95);
           c.globalCompositeOperation = 'source-over';
@@ -1349,8 +1501,8 @@ class Battle {
           break;
         }
         case 'bullet': {
-          c.globalCompositeOperation = 'lighter'; radial(c, 0, 0, 12, '#ffffff', '#5cc8ff', 0.8); c.globalCompositeOperation = 'source-over';
-          c.fillStyle = '#e8f6ff'; c.beginPath(); c.ellipse(0, 0, 6, 2.6, 0, 0, TAU); c.fill(); c.strokeStyle = '#1a3a6a'; c.lineWidth = 1; c.stroke();
+          c.globalCompositeOperation = 'lighter'; radial(c, 0, 0, 12, '#ffffff', E.color, 0.8); c.globalCompositeOperation = 'source-over';
+          c.fillStyle = E.light; c.beginPath(); c.ellipse(0, 0, 6, 2.6, 0, 0, TAU); c.fill(); c.strokeStyle = '#1a3a6a'; c.lineWidth = 1; c.stroke();
           break;
         }
         case 'chakram': {
@@ -1369,9 +1521,9 @@ class Battle {
           c.fillStyle = '#1a2a20'; c.beginPath(); c.arc(4, -2, 1.3, 0, TAU); c.arc(4, 2, 1.3, 0, TAU); c.fill();
           break;
         }
-        case 'holyspear': {
-          c.globalCompositeOperation = 'lighter'; radial(c, 10, 0, 26, '#ffffff', '#ffd23f', 0.7); c.globalCompositeOperation = 'source-over';
-          c.fillStyle = '#fff6c0'; c.strokeStyle = OL; c.lineWidth = 1.6;
+        case 'holyspear': case 'spear': {
+          c.globalCompositeOperation = 'lighter'; radial(c, 10, 0, 26, '#ffffff', p.kind === 'spear' ? E.color : '#ffd23f', 0.7); c.globalCompositeOperation = 'source-over';
+          c.fillStyle = p.kind === 'spear' ? E.light : '#fff6c0'; c.strokeStyle = OL; c.lineWidth = 1.6;
           c.beginPath(); c.moveTo(26, 0); c.lineTo(14, -5); c.lineTo(14, -2); c.lineTo(-24, -2); c.lineTo(-24, 2); c.lineTo(14, 2); c.lineTo(14, 5); c.closePath(); c.fill(); c.stroke();
           break;
         }

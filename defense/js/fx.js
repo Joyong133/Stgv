@@ -150,14 +150,15 @@ const FX_DRAW = {
     if (fall < 1) {
       const x = lerp(e.x - 200, e.x, easeIn(fall)), y = lerp(e.y - 520, e.y, easeIn(fall));
       c.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 6; i++) radial(c, x - (x - (e.x - 200)) * i * 0.05, y - (y - (e.y - 520)) * i * 0.05, 34 - i * 4, '#ffe08a', '#ff4a1a', 0.8 - i * 0.12);
+      const c1 = e.c1 || '#ffe08a', c2 = e.c2 || '#ff4a1a';
+      for (let i = 0; i < 6; i++) radial(c, x - (x - (e.x - 200)) * i * 0.05, y - (y - (e.y - 520)) * i * 0.05, 34 - i * 4, c1, c2, 0.8 - i * 0.12);
       c.globalCompositeOperation = 'source-over';
-      c.fillStyle = '#5a2a1a'; c.beginPath(); c.arc(x, y, 14, 0, TAU); c.fill(); c.strokeStyle = '#ffb03a'; c.lineWidth = 3; c.stroke();
+      c.fillStyle = e.c2 ? shade(c2, -0.6) : '#5a2a1a'; c.beginPath(); c.arc(x, y, 14, 0, TAU); c.fill(); c.strokeStyle = c1; c.lineWidth = 3; c.stroke();
     } else {
       const q = seg(p, 0.55, 1);
       c.globalCompositeOperation = 'lighter';
-      radial(c, e.x, e.y, e.r * (0.6 + q * 0.8), '#fff0c0', '#ff5a1a', 1 - q);
-      c.globalAlpha = 1 - q; c.strokeStyle = '#ffb03a'; c.lineWidth = 8 * (1 - q);
+      radial(c, e.x, e.y, e.r * (0.6 + q * 0.8), e.c1 || '#fff0c0', e.c2 || '#ff5a1a', 1 - q);
+      c.globalAlpha = 1 - q; c.strokeStyle = e.c1 || '#ffb03a'; c.lineWidth = 8 * (1 - q);
       c.beginPath(); c.ellipse(e.x, e.y, e.r * 1.4 * easeOut(q), e.r * 0.7 * easeOut(q), 0, 0, TAU); c.stroke();
     }
   },

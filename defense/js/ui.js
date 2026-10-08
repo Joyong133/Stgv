@@ -619,7 +619,7 @@ const UI = {
     const S = this.game.save;
     this.modal('설정', `<div class="opts">${this.settingsHtml()}</div>
       <p class="hint">진행 상황은 자동 저장됩니다 · 소환 ${S.stats.summons || 0}회 · 전투 ${S.stats.battles || 0}회</p>
-      <p class="hint small">수호기사 방어전 v2.0 · 비공식 팬메이드 게임입니다. 캐릭터 · 그림 · 음악은 모두 직접 코드로 그렸습니다.</p>`, [
+      <p class="hint small">수호기사 방어전 v2.1 · 비공식 팬메이드 게임입니다. 캐릭터 · 그림 · 음악은 모두 직접 코드로 그렸습니다.</p>`, [
       { t: '데이터 초기화', cls: 'ghost danger', keep: true, fn: () => this.modal('데이터 초기화', '<p>모든 영웅과 진행 상황이 삭제됩니다.<br><b>정말 초기화할까요?</b></p>', [
         { t: '취소', cls: 'ghost' }, { t: '초기화', cls: 'danger', fn: () => { this.game.reset(); } }]) },
       { t: '닫기' },

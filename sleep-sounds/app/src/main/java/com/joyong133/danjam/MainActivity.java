@@ -3,6 +3,7 @@ package com.joyong133.danjam;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -11,15 +12,12 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.Insets;
-import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.text.InputType;
 import android.text.TextUtils;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,11 +41,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 소리 고르기 화면: 분류별 소리 타일, 추천·내 믹스, 아래쪽 재생 막대. */
+import static com.joyong133.danjam.Ui.CARD;
+import static com.joyong133.danjam.Ui.CARD_ON;
+import static com.joyong133.danjam.Ui.INK;
+import static com.joyong133.danjam.Ui.MOON;
+import static com.joyong133.danjam.Ui.SKY;
+import static com.joyong133.danjam.Ui.SUB;
+import static com.joyong133.danjam.Ui.TEXT;
+
+/** 소리 고르기 화면: 분류별 소리 타일, 추천·내 믹스, 위쪽 바로가기(소리 공간·호흡·취침 화면), 아래쪽 재생 막대. */
 public final class MainActivity extends Activity implements SoundService.Listener {
-    private static final int BG_TOP = 0xFF141B3A, BG_BOTTOM = 0xFF070A17;
-    private static final int CARD = 0xFF19214A, CARD_ON = 0xFF33408A, BAR = 0xF21C2552;
-    private static final int TEXT = 0xFFEAEDFF, SUB = 0xFF8E97C0, MOON = 0xFFF6D98B, SKY = 0xFF9DB4FF;
     private static final int TAB_MIXES = SoundCatalog.CATEGORIES.length;
     private static final int[] TIMER_MINUTES = {0, 10, 15, 20, 30, 45, 60, 90, 120, 180, 480};
 
@@ -63,6 +66,8 @@ public final class MainActivity extends Activity implements SoundService.Listene
 
     private SoundService service;
     private boolean bound;
+    /** 열려 있는 전체 화면 대화상자 (소리 공간·호흡·취침 화면) */
+    private Dialog openDialog;
     private MixStore store;
     private int tab;
     private boolean updating;
@@ -72,7 +77,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
     private final List<TextView> tabs = new ArrayList<>();
     private final Map<String, Tile> tiles = new HashMap<>();
     private ImageButton playButton, clearButton;
-    private TextView barTitle, barSub, timerButton;
+    private TextView barTitle, barSub, timerButton, spaceButton;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -106,11 +111,19 @@ public final class MainActivity extends Activity implements SoundService.Listene
 
     @Override
     protected void onStop() {
+        // 재생 중이 아니면 화면을 떠난 사이 서비스가 끝날 수 있으니 대화상자도 닫는다
+        if (openDialog != null && (service == null || !service.isPlaying())) openDialog.dismiss();
         if (service != null) service.removeListener(this);
         if (bound) unbindService(connection);
         bound = false;
         service = null;
         super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (openDialog != null) openDialog.dismiss();
+        super.onDestroy();
     }
 
     @Override
@@ -122,23 +135,15 @@ public final class MainActivity extends Activity implements SoundService.Listene
     // ---- 화면 구성 ----
 
     private int dp(float v) {
-        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
-    }
-
-    private static GradientDrawable rounded(int color, float radiusPx) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(radiusPx);
-        return d;
+        return Ui.dp(this, v);
     }
 
     private TextView text(CharSequence s, float sp, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
-        return t;
+        return Ui.text(this, s, sp, color, bold);
+    }
+
+    private static GradientDrawable rounded(int color, float radiusPx) {
+        return Ui.rounded(color, radiusPx);
     }
 
     @SuppressWarnings("deprecation")
@@ -157,7 +162,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
 
     private View buildRoot() {
         FrameLayout root = new FrameLayout(this);
-        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG_TOP, BG_BOTTOM}));
+        root.setBackground(Ui.night());
 
         column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -165,17 +170,49 @@ public final class MainActivity extends Activity implements SoundService.Listene
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(22), dp(18), dp(22), dp(10));
-        TextView title = text("단잠 🌙", 28, TEXT, true);
-        header.addView(title);
+        header.setPadding(dp(22), dp(18), dp(22), dp(8));
+        header.addView(text("단잠 🌙", 28, TEXT, true));
         TextView subtitle = text("빗소리와 자연의 소리를 섞어 나만의 잠자리를 만들어 보세요", 13, SUB, false);
         subtitle.setPadding(0, dp(4), 0, 0);
         header.addView(subtitle);
         column.addView(header);
 
+        // 바로가기: 소리 공간(3D·설정), 호흡 안내, 취침 화면
+        LinearLayout actions = new LinearLayout(this);
+        actions.setPadding(dp(14), dp(4), dp(14), dp(8));
+        spaceButton = Ui.pill(this, "🎧 소리 공간", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (service != null) openDialog = SpaceDialog.show(MainActivity.this, service);
+            }
+        });
+        spaceButton.setContentDescription("소리 공간: 3D 공간 음향과 소리 설정");
+        TextView breath = Ui.pill(this, "🌬️ 호흡", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (service != null) openDialog = BreathDialog.show(MainActivity.this, service);
+            }
+        });
+        breath.setContentDescription("호흡 안내");
+        TextView bedside = Ui.pill(this, "🌙 취침 화면", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (service != null) openDialog = BedsideDialog.show(MainActivity.this, service);
+            }
+        });
+        bedside.setContentDescription("취침 화면");
+        View[] pills = {spaceButton, breath, bedside};
+        float[] weights = {1.25f, 0.85f, 1f};
+        for (int i = 0; i < pills.length; i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weights[i]);
+            if (i > 0) lp.leftMargin = dp(6);
+            actions.addView(pills[i], lp);
+        }
+        column.addView(actions);
+
         // 분류 탭: 화면 너비를 똑같이 나눠 좁은 폰에서도 모두 보이게 한다
         LinearLayout tabRow = new LinearLayout(this);
-        tabRow.setPadding(dp(14), dp(4), dp(14), dp(10));
+        tabRow.setPadding(dp(14), dp(2), dp(14), dp(10));
         String[] labels = new String[TAB_MIXES + 1];
         System.arraycopy(SoundCatalog.CATEGORIES, 0, labels, 0, TAB_MIXES);
         labels[TAB_MIXES] = "★ 믹스";
@@ -212,47 +249,25 @@ public final class MainActivity extends Activity implements SoundService.Listene
         root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
             @Override
             public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                int l, t, r, b;
-                if (Build.VERSION.SDK_INT >= 30) {
-                    Insets i = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                    l = i.left;
-                    t = i.top;
-                    r = i.right;
-                    b = i.bottom;
-                } else {
-                    l = legacyInset(insets, 0);
-                    t = legacyInset(insets, 1);
-                    r = legacyInset(insets, 2);
-                    b = legacyInset(insets, 3);
-                }
-                column.setPadding(l, t, r, b);
+                int[] b = Ui.bars(insets);
+                column.setPadding(b[0], b[1], b[2], b[3]);
                 return insets;
             }
         });
         return root;
     }
 
-    @SuppressWarnings("deprecation")
-    private static int legacyInset(WindowInsets insets, int side) {
-        switch (side) {
-            case 0: return insets.getSystemWindowInsetLeft();
-            case 1: return insets.getSystemWindowInsetTop();
-            case 2: return insets.getSystemWindowInsetRight();
-            default: return insets.getSystemWindowInsetBottom();
-        }
-    }
-
     private View buildBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(10), dp(10), dp(8), dp(10));
-        bar.setBackground(rounded(BAR, dp(30)));
+        bar.setBackground(rounded(Ui.BAR, dp(30)));
         bar.setElevation(dp(8));
 
         playButton = new ImageButton(this);
-        playButton.setBackground(roundedOval(MOON));
+        playButton.setBackground(Ui.oval(MOON));
         playButton.setImageResource(R.drawable.ic_play);
-        playButton.setImageTintList(ColorStateList.valueOf(0xFF151B3C));
+        playButton.setImageTintList(ColorStateList.valueOf(INK));
         playButton.setContentDescription("재생");
         playButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -321,19 +336,12 @@ public final class MainActivity extends Activity implements SoundService.Listene
         return bar;
     }
 
-    private static GradientDrawable roundedOval(int color) {
-        GradientDrawable d = new GradientDrawable();
-        d.setShape(GradientDrawable.OVAL);
-        d.setColor(color);
-        return d;
-    }
-
     private void showTab(int index) {
         tab = index;
         for (int i = 0; i < tabs.size(); i++) {
             TextView t = tabs.get(i);
             boolean on = i == index;
-            t.setTextColor(on ? 0xFF151B3C : SUB);
+            t.setTextColor(on ? INK : SUB);
             t.setBackground(rounded(on ? SKY : CARD, dp(20)));
         }
         content.removeAllViews();
@@ -364,11 +372,11 @@ public final class MainActivity extends Activity implements SoundService.Listene
         if (row != null) {
             for (int i = sounds.size() % cols; i != 0 && i < cols; i++) row.addView(new View(this), tileParams());
         }
-        if (category == SoundCatalog.CALM) {
-            TextView note = text("델타파는 왼쪽·오른쪽 귀에 조금 다른 음을 들려주는 소리라 이어폰으로 들어야 효과가 있어요.", 12, SUB, false);
-            note.setPadding(dp(6), dp(12), dp(6), 0);
-            content.addView(note);
-        }
+        TextView note = text(category == SoundCatalog.CALM
+                ? "델타파·세타파는 왼쪽·오른쪽 귀에 조금 다른 음을 들려주는 소리라 이어폰으로 들어야 효과가 있어요. 길게 누르면 소리 설명을 볼 수 있어요."
+                : "소리를 길게 누르면 설명을 볼 수 있어요.", 12, SUB, false);
+        note.setPadding(dp(6), dp(12), dp(6), 0);
+        content.addView(note);
     }
 
     private LinearLayout.LayoutParams tileParams() {
@@ -397,13 +405,10 @@ public final class MainActivity extends Activity implements SoundService.Listene
         SeekBar volume = new SeekBar(this);
         volume.setMax(100);
         volume.setPadding(dp(14), 0, dp(14), 0);
-        volume.setProgressTintList(ColorStateList.valueOf(MOON));
-        volume.setThumbTintList(ColorStateList.valueOf(MOON));
-        volume.setProgressBackgroundTintList(ColorStateList.valueOf(0x66FFFFFF));
+        Ui.style(volume);
         volume.setContentDescription(s.name + " 음량");
         volume.setOnSeekBarChangeListener(volumeListener(s.id));
-        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        box.addView(volume, vp);
+        box.addView(volume, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         box.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -411,6 +416,13 @@ public final class MainActivity extends Activity implements SoundService.Listene
                 if (service == null) return;
                 if (!service.mix().containsKey(s.id)) askNotificationPermission();
                 service.toggle(s.id);
+            }
+        });
+        box.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                showSoundInfo(s);
+                return true;
             }
         });
         tiles.put(s.id, new Tile(box, volume));
@@ -476,7 +488,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         TextView title = text("내 믹스", 16, TEXT, true);
         title.setPadding(dp(6), dp(22), dp(6), dp(8));
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView save = text("＋ 지금 조합 저장", 13, 0xFF151B3C, true);
+        TextView save = text("＋ 지금 조합 저장", 13, INK, true);
         save.setPadding(dp(14), dp(8), dp(14), dp(8));
         save.setBackground(rounded(MOON, dp(18)));
         save.setOnClickListener(new View.OnClickListener() {
@@ -509,7 +521,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
             card.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
-                    confirmDelete(index, s.name);
+                    showMixOptions(index, s.name);
                     return true;
                 }
             });
@@ -517,7 +529,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
             content.addView(card);
         }
         if (!saved.isEmpty()) {
-            TextView hint = text("저장한 믹스를 길게 누르면 삭제할 수 있어요.", 12, SUB, false);
+            TextView hint = text("저장한 믹스를 길게 누르면 이름을 바꾸거나 지금 조합으로 바꾸거나 지울 수 있어요.", 12, SUB, false);
             hint.setPadding(dp(6), dp(6), dp(6), 0);
             content.addView(hint);
         }
@@ -528,8 +540,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(dp(16), dp(14), dp(16), dp(14));
         card.setBackground(rounded(CARD, dp(20)));
-        TextView e = text(emoji, 28, TEXT, false);
-        card.addView(e);
+        card.addView(text(emoji, 28, TEXT, false));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(14), 0, 0, 0);
@@ -570,6 +581,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
     private void refresh() {
         Map<String, Integer> mix = service == null ? new LinkedHashMap<String, Integer>() : service.mix();
         boolean playing = service != null && service.isPlaying();
+        boolean space = service != null && service.spatialActive();
         updating = true;
         for (Map.Entry<String, Tile> e : tiles.entrySet()) {
             Integer vol = mix.get(e.getKey());
@@ -593,8 +605,11 @@ public final class MainActivity extends Activity implements SoundService.Listene
             barSub.setText("여러 소리를 함께 켜면 섞여서 들려요");
         } else {
             barTitle.setText(names(mix));
-            barSub.setText(playing ? "재생 중 · 눌러서 음량 조절" : "일시정지 · 눌러서 음량 조절");
+            barSub.setText((playing ? "재생 중" : "일시정지") + (space ? " · 🎧 3D" : "") + " · 눌러서 음량 조절");
         }
+        spaceButton.setText(space ? "🎧 3D 켜짐" : "🎧 소리 공간");
+        spaceButton.setTextColor(space ? INK : TEXT);
+        spaceButton.setBackground(rounded(space ? SKY : CARD, dp(18)));
         playButton.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
         playButton.setContentDescription(playing ? "일시정지" : "재생");
         playButton.setEnabled(!mix.isEmpty());
@@ -644,9 +659,26 @@ public final class MainActivity extends Activity implements SoundService.Listene
                         if (service == null) return;
                         service.setTimer(TIMER_MINUTES[which]);
                         if (TIMER_MINUTES[which] > 0) {
+                            int fade = Math.min(service.fadeMinutes(), TIMER_MINUTES[which]);
                             Toast.makeText(MainActivity.this, minutesLabel(TIMER_MINUTES[which])
-                                    + " 뒤에 꺼져요. 마지막 1분 동안 천천히 작아져요.", Toast.LENGTH_SHORT).show();
+                                    + " 뒤에 꺼져요. 마지막 " + fade + "분 동안 천천히 작아져요.", Toast.LENGTH_SHORT).show();
                         }
+                    }
+                })
+                .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    private void showSoundInfo(final SoundCatalog.Sound s) {
+        final boolean on = service != null && service.mix().containsKey(s.id);
+        dialog().setTitle(s.emoji + "  " + s.name)
+                .setMessage(s.desc + (s.spatial ? "" : "\n\n이 소리는 3D 로 옮기지 않고 그대로 들려줘요."))
+                .setPositiveButton(on ? "끄기" : "켜기", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        if (service == null) return;
+                        if (!on) askNotificationPermission();
+                        service.toggle(s.id);
                     }
                 })
                 .setNegativeButton("닫기", null)
@@ -670,8 +702,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
             SeekBar volume = new SeekBar(this);
             volume.setMax(100);
             volume.setProgress(service.mix().get(id));
-            volume.setProgressTintList(ColorStateList.valueOf(MOON));
-            volume.setThumbTintList(ColorStateList.valueOf(MOON));
+            Ui.style(volume);
             volume.setContentDescription(s.name + " 음량");
             volume.setOnSeekBarChangeListener(volumeListener(id));
             row.addView(volume, new LinearLayout.LayoutParams(0, dp(44), 1f));
@@ -704,35 +735,79 @@ public final class MainActivity extends Activity implements SoundService.Listene
                 .show();
     }
 
+    /** 이름 입력 대화상자. */
+    private interface NameCallback {
+        void onName(String name);
+    }
+
+    private void askName(String title, String message, String initial, String ok, final NameCallback cb) {
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setSingleLine(true);
+        input.setText(initial);
+        input.setSelectAllOnFocus(true);
+        input.setTextColor(TEXT);
+        FrameLayout wrap = new FrameLayout(this);
+        wrap.setPadding(dp(20), dp(8), dp(20), 0);
+        wrap.addView(input);
+        dialog().setTitle(title)
+                .setMessage(message)
+                .setView(wrap)
+                .setPositiveButton(ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        String name = input.getText().toString().trim();
+                        cb.onName(name.isEmpty() ? "내 믹스" : name);
+                    }
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
     private void showSaveDialog() {
         if (service == null || service.mix().isEmpty()) {
             Toast.makeText(this, "먼저 소리를 하나 이상 켜 주세요", Toast.LENGTH_SHORT).show();
             return;
         }
         final Map<String, Integer> mix = new LinkedHashMap<>(service.mix());
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setSingleLine(true);
-        input.setText("내 믹스 " + (store.loadSaved().size() + 1));
-        input.setSelectAllOnFocus(true);
-        input.setTextColor(TEXT);
-        FrameLayout wrap = new FrameLayout(this);
-        wrap.setPadding(dp(20), dp(8), dp(20), 0);
-        wrap.addView(input);
-        dialog().setTitle("이 조합 저장하기")
-                .setMessage(names(mix))
-                .setView(wrap)
-                .setPositiveButton("저장", new DialogInterface.OnClickListener() {
+        askName("이 조합 저장하기", names(mix), "내 믹스 " + (store.loadSaved().size() + 1), "저장", new NameCallback() {
+            @Override
+            public void onName(String name) {
+                store.addSaved(name, mix);
+                Toast.makeText(MainActivity.this, "‘" + name + "’ 저장했어요", Toast.LENGTH_SHORT).show();
+                if (tab == TAB_MIXES) showTab(TAB_MIXES);
+            }
+        });
+    }
+
+    private void showMixOptions(final int index, final String name) {
+        String[] options = {"이름 바꾸기", "지금 듣는 조합으로 바꾸기", "삭제"};
+        dialog().setTitle(name)
+                .setItems(options, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
-                        String name = input.getText().toString().trim();
-                        if (name.isEmpty()) name = "내 믹스";
-                        store.addSaved(name, mix);
-                        Toast.makeText(MainActivity.this, "‘" + name + "’ 저장했어요", Toast.LENGTH_SHORT).show();
-                        if (tab == TAB_MIXES) showTab(TAB_MIXES);
+                        if (which == 0) {
+                            askName("이름 바꾸기", null, name, "바꾸기", new NameCallback() {
+                                @Override
+                                public void onName(String newName) {
+                                    store.renameSaved(index, newName);
+                                    showTab(TAB_MIXES);
+                                }
+                            });
+                        } else if (which == 1) {
+                            if (service == null || service.mix().isEmpty()) {
+                                Toast.makeText(MainActivity.this, "먼저 소리를 하나 이상 켜 주세요", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+                            store.replaceSaved(index, service.mix());
+                            Toast.makeText(MainActivity.this, "‘" + name + "’을(를) 지금 조합으로 바꿨어요", Toast.LENGTH_SHORT).show();
+                            showTab(TAB_MIXES);
+                        } else {
+                            confirmDelete(index, name);
+                        }
                     }
                 })
-                .setNegativeButton("취소", null)
+                .setNegativeButton("닫기", null)
                 .show();
     }
 

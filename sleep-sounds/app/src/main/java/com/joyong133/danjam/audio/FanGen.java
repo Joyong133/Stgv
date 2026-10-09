@@ -30,8 +30,8 @@ public final class FanGen extends Generator {
         if (sweep >= 1f) sweep -= 1f;
         float s = Sine.of(sweep);
         float facing = 0.5f + 0.5f * Sine.of(sweep * 2f + 0.25f);
-        lpL.set(sr, 1500 + 1500 * facing * (0.6f - 0.4f * s), 0.7f);
-        lpR.set(sr, 1500 + 1500 * facing * (0.6f + 0.4f * s), 0.7f);
+        lpL.set(sr, 2200 + 2000 * facing * (0.6f - 0.4f * s), 0.7f);
+        lpR.set(sr, 2200 + 2000 * facing * (0.6f + 0.4f * s), 0.7f);
         float g = 0.75f + 0.25f * facing;
         float gl = g * (1f - 0.18f * s), gr = g * (1f + 0.18f * s);
         for (int i = 0; i < n; i++) {

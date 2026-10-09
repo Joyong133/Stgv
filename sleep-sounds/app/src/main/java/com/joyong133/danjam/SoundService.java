@@ -12,6 +12,8 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
@@ -26,6 +28,7 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.joyong133.danjam.audio.Place;
 import com.joyong133.danjam.audio.SoundCatalog;
 
 import java.util.ArrayList;
@@ -36,7 +39,8 @@ import java.util.Map;
 
 /**
  * 화면이 꺼져도 소리가 계속 나도록 재생을 맡는 서비스.
- * 지금 켜 둔 소리 조합, 재생/일시정지, 잠들기 타이머, 알림과 잠금화면 컨트롤을 관리한다.
+ * 지금 켜 둔 소리 조합, 재생/일시정지, 잠들기 타이머, 알림과 잠금화면 컨트롤,
+ * 3D 공간 음향(이어폰을 꽂으면 자동으로 켜짐)과 소리 설정, 호흡 안내 소리를 관리한다.
  * 모든 메서드는 메인 스레드에서 호출한다.
  */
 public final class SoundService extends Service implements AudioManager.OnAudioFocusChangeListener {
@@ -47,8 +51,6 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     private static final String TAG = "SoundService";
     private static final String CHANNEL = "playback";
     private static final int NOTIFICATION_ID = 1;
-    /** 타이머가 끝나기 이만큼 전부터 소리를 서서히 줄인다 */
-    private static final long FADE_OUT_MS = 60_000L;
     private static final float DUCK = 0.3f;
 
     interface Listener {
@@ -77,6 +79,10 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     private MediaSession session;
     private PowerManager.WakeLock wakeLock;
     private boolean playing, foreground, notificationShown, noisyRegistered, resumeOnFocus, ducked, fading;
+    private boolean headphones;
+    /** 호흡 안내 소리 채널 id (꺼져 있으면 null) */
+    private String breathId;
+    private AudioDeviceCallback deviceCallback;
     /** SystemClock.elapsedRealtime 기준 타이머 종료 시각, 0이면 타이머 없음 */
     private long timerEnd;
     private long lastNotifiedMinute = -1;
@@ -105,6 +111,30 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         engine = new AudioEngine();
         engine.start();
         mix.putAll(store.loadCurrent());
+        // 소리 설정과 사용자가 옮겨 둔 3D 자리를 먼저 알려 준다
+        for (SoundCatalog.Sound s : SoundCatalog.ALL) {
+            Place p = store.place(s.id);
+            if (p != null) engine.place(s.id, p);
+        }
+        engine.volume(store.volume() / 100f);
+        engine.tone(toneOf(store.tone()));
+        engine.room(store.room() / 100f);
+        engine.motion(store.motion());
+        engine.natural(store.natural());
+        headphones = detectHeadphones();
+        engine.spatial(spatialActive());
+        deviceCallback = new AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesAdded(AudioDeviceInfo[] added) {
+                onDevicesChanged();
+            }
+
+            @Override
+            public void onAudioDevicesRemoved(AudioDeviceInfo[] removed) {
+                onDevicesChanged();
+            }
+        };
+        audio.registerAudioDeviceCallback(deviceCallback, handler);
         for (Map.Entry<String, Integer> e : mix.entrySet()) engine.set(e.getKey(), gain(e.getKey(), e.getValue()), 0f);
 
         if (Build.VERSION.SDK_INT >= 26) {
@@ -161,6 +191,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     @Override
     public void onDestroy() {
         handler.removeCallbacks(tick);
+        audio.unregisterAudioDeviceCallback(deviceCallback);
         engine.release();
         session.release();
         if (wakeLock.isHeld()) wakeLock.release();
@@ -207,7 +238,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (mix.containsKey(id)) {
             mix.remove(id);
             engine.remove(id, 1.2f);
-            if (mix.isEmpty()) pause();
+            if (mix.isEmpty() && breathId == null) pause();
         } else {
             mix.put(id, DEFAULT_VOLUME);
             engine.set(id, gain(id, DEFAULT_VOLUME), 1.5f);
@@ -239,14 +270,14 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 모든 소리를 끈다. */
     void clear() {
+        for (String id : mix.keySet()) engine.remove(id, 1f);
         mix.clear();
-        engine.removeAll(1f);
-        pause();
+        if (breathId == null) pause();
         changed();
     }
 
     void play() {
-        if (mix.isEmpty()) return;
+        if (mix.isEmpty() && breathId == null) return;
         if (!requestFocus()) {
             Log.w(TAG, "오디오 포커스를 받지 못해 재생하지 않음");
             return;
@@ -314,7 +345,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
             stopPlayback();
             return;
         }
-        if (playing && !fading && left <= FADE_OUT_MS) {
+        if (playing && !fading && left <= store.fadeMinutes() * 60_000L) {
             fading = true;
             engine.master(0f, left / 1000f);
         }
@@ -332,6 +363,157 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         updateNotification();
         updateSession();
         for (Listener l : new ArrayList<>(listeners)) l.onStateChanged();
+    }
+
+    // ---- 3D 공간 음향과 소리 설정 ----
+
+    private static float toneOf(int v) {
+        return (v - 50) / 50f;
+    }
+
+    private boolean detectHeadphones() {
+        for (AudioDeviceInfo d : audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            switch (d.getType()) {
+                case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+                case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+                case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
+                case AudioDeviceInfo.TYPE_USB_HEADSET:
+                case AudioDeviceInfo.TYPE_HEARING_AID:
+                case AudioDeviceInfo.TYPE_BLE_HEADSET:
+                    return true;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+
+    private void onDevicesChanged() {
+        boolean now = detectHeadphones();
+        if (now == headphones) return;
+        headphones = now;
+        engine.spatial(spatialActive());
+        changed();
+    }
+
+    /** 이어폰(유선·블루투스)이 연결되어 있는지 */
+    boolean headphones() {
+        return headphones;
+    }
+
+    /** 지금 3D 로 들리고 있는지 */
+    boolean spatialActive() {
+        int m = store.spaceMode();
+        return m == MixStore.SPACE_ON || (m == MixStore.SPACE_AUTO && headphones);
+    }
+
+    int spaceMode() {
+        return store.spaceMode();
+    }
+
+    void setSpaceMode(int m) {
+        store.setSpaceMode(m);
+        engine.spatial(spatialActive());
+        changed();
+    }
+
+    int motion() {
+        return store.motion();
+    }
+
+    void setMotion(int m) {
+        store.setMotion(m);
+        engine.motion(m);
+    }
+
+    int room() {
+        return store.room();
+    }
+
+    void setRoom(int v) {
+        store.setRoom(v);
+        engine.room(v / 100f);
+    }
+
+    int volume() {
+        return store.volume();
+    }
+
+    void setVolume(int v) {
+        store.setVolume(v);
+        engine.volume(v / 100f);
+    }
+
+    int tone() {
+        return store.tone();
+    }
+
+    void setTone(int v) {
+        store.setTone(v);
+        engine.tone(toneOf(v));
+    }
+
+    boolean natural() {
+        return store.natural();
+    }
+
+    void setNatural(boolean on) {
+        store.setNatural(on);
+        engine.natural(on);
+    }
+
+    int fadeMinutes() {
+        return store.fadeMinutes();
+    }
+
+    void setFadeMinutes(int m) {
+        store.setFadeMinutes(m);
+    }
+
+    /** 소리의 지금 3D 자리 (옮긴 적이 없으면 기본 자리) */
+    Place placeOf(String id) {
+        Place p = store.place(id);
+        SoundCatalog.Sound s = SoundCatalog.get(id);
+        return p != null ? p : s == null ? null : s.place;
+    }
+
+    /** 3D 자리를 옮긴다. save 가 false 면 끄는 동안처럼 소리만 바꾸고 저장은 나중에. */
+    void movePlace(String id, float az, float dist, boolean save) {
+        SoundCatalog.Sound s = SoundCatalog.get(id);
+        if (s == null) return;
+        Place p = s.place.withAzDist(az, dist);
+        engine.place(id, p);
+        if (save) store.setPlace(id, p);
+    }
+
+    void resetPlace(String id) {
+        store.setPlace(id, null);
+        engine.place(id, null);
+    }
+
+    void resetAllPlaces() {
+        store.clearPlaces();
+        for (SoundCatalog.Sound s : SoundCatalog.ALL) engine.place(s.id, null);
+    }
+
+    // ---- 호흡 안내 ----
+
+    /** 호흡 안내 소리를 켠다. spec: 들이쉬기,멈추기,내쉬기,멈추기 (초) */
+    void startBreath(String spec) {
+        stopBreath();
+        breathId = "breath:" + spec;
+        // 기본 음량의 다른 소리보다 3~4dB 작게: 빗소리 위로도 숨결이 들리도록
+        engine.set(breathId, 1.05f, 0.3f);
+        if (!playing) play();
+        changed();
+    }
+
+    void stopBreath() {
+        if (breathId == null) return;
+        engine.remove(breathId, 1f);
+        breathId = null;
+        if (mix.isEmpty() && playing) pause();
+        changed();
     }
 
     // ---- 오디오 포커스 ----
@@ -466,6 +648,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     private String statusText() {
         String s = playing ? "재생 중" : "일시정지";
+        if (spatialActive()) s += " · 3D";
         long left = timerRemaining();
         if (left > 0) s += " · " + ((left + 59_999) / 60_000) + "분 뒤 꺼짐";
         return s;

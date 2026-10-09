@@ -1,6 +1,9 @@
 package com.joyong133.danjam.audio;
 
-/** 바람: 돌풍에 따라 높낮이가 바뀌는 '휘이잉', 강할 때만 살짝 나는 휘파람 소리. */
+/**
+ * 바람: 돌풍에 따라 높낮이가 바뀌는 '휘이잉', 강할 때만 살짝 나는 휘파람 소리.
+ * snow 를 주면 눈보라처럼 휘파람이 잦고 날리는 눈이 '사아' 하고 스친다.
+ */
 public final class WindGen extends Generator {
 
     private final class Voice {
@@ -37,11 +40,19 @@ public final class WindGen extends Generator {
     }
 
     private final Voice a, b;
-    private final float whistleLevel;
+    private final float whistleLevel, snow;
+    private final Biquad snowHpL = new Biquad(), snowHpR = new Biquad();
 
     public WindGen(float sr, float whistleLevel) {
+        this(sr, whistleLevel, 0f);
+    }
+
+    public WindGen(float sr, float whistleLevel, float snow) {
         super(sr);
         this.whistleLevel = whistleLevel;
+        this.snow = snow;
+        snowHpL.hp(sr, 3500, 0.7f);
+        snowHpR.hp(sr, 3500, 0.7f);
         a = new Voice(-0.6f);
         b = new Voice(0.6f);
         reverbSend = 0.05f;
@@ -52,5 +63,12 @@ public final class WindGen extends Generator {
         for (int i = 0; i < n; i++) l[i] = r[i] = 0;
         a.add(l, r, n);
         b.add(l, r, n);
+        if (snow > 0) {
+            float gl = snow * a.gust.value * a.gust.value, gr = snow * b.gust.value * b.gust.value;
+            for (int i = 0; i < n; i++) {
+                l[i] += snowHpL.process(rng.bi()) * gl;
+                r[i] += snowHpR.process(rng.bi()) * gr;
+            }
+        }
     }
 }

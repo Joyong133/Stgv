@@ -3,6 +3,7 @@ package com.joyong133.danjam;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.joyong133.danjam.audio.Place;
 import com.joyong133.danjam.audio.SoundCatalog;
 
 import org.json.JSONArray;
@@ -14,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 마지막으로 듣던 조합과 사용자가 저장한 믹스를 기기에 보관한다. */
+/** 마지막으로 듣던 조합, 사용자가 저장한 믹스, 소리 설정(3D·음량·톤 등)을 기기에 보관한다. */
 final class MixStore {
     private static final String PREFS = "danjam";
     private static final String CURRENT = "current_mix";
@@ -105,6 +106,113 @@ final class MixStore {
             list.remove(index);
             writeSaved(list);
         }
+    }
+
+    void renameSaved(int index, String name) {
+        List<Saved> list = loadSaved();
+        if (index >= 0 && index < list.size()) {
+            list.set(index, new Saved(name, list.get(index).mix));
+            writeSaved(list);
+        }
+    }
+
+    /** 저장한 믹스를 지금 듣는 조합으로 바꾼다. */
+    void replaceSaved(int index, Map<String, Integer> mix) {
+        List<Saved> list = loadSaved();
+        if (index >= 0 && index < list.size()) {
+            list.set(index, new Saved(list.get(index).name, new LinkedHashMap<>(mix)));
+            writeSaved(list);
+        }
+    }
+
+    // ---- 소리 설정 ----
+
+    static final int SPACE_AUTO = 0, SPACE_ON = 1, SPACE_OFF = 2;
+
+    /** 3D 공간 음향: 자동(이어폰 연결 시) / 켜기 / 끄기 */
+    int spaceMode() {
+        return prefs.getInt("space_mode", SPACE_AUTO);
+    }
+
+    void setSpaceMode(int m) {
+        prefs.edit().putInt("space_mode", m).apply();
+    }
+
+    /** 움직임: 0 멈춤, 1 살랑살랑, 2 감싸기 */
+    int motion() {
+        return prefs.getInt("motion", 1);
+    }
+
+    void setMotion(int m) {
+        prefs.edit().putInt("motion", m).apply();
+    }
+
+    /** 공간감 0~100 */
+    int room() {
+        return prefs.getInt("room", 50);
+    }
+
+    void setRoom(int v) {
+        prefs.edit().putInt("room", v).apply();
+    }
+
+    /** 전체 음량 0~100 */
+    int volume() {
+        return prefs.getInt("volume", 100);
+    }
+
+    void setVolume(int v) {
+        prefs.edit().putInt("volume", v).apply();
+    }
+
+    /** 톤 0(부드럽게)~50(그대로)~100(선명하게) */
+    int tone() {
+        return prefs.getInt("tone", 50);
+    }
+
+    void setTone(int v) {
+        prefs.edit().putInt("tone", v).apply();
+    }
+
+    boolean natural() {
+        return prefs.getBoolean("natural", false);
+    }
+
+    void setNatural(boolean on) {
+        prefs.edit().putBoolean("natural", on).apply();
+    }
+
+    /** 타이머가 끝날 때 소리를 줄이는 시간 (분) */
+    int fadeMinutes() {
+        return prefs.getInt("fade_minutes", 5);
+    }
+
+    void setFadeMinutes(int m) {
+        prefs.edit().putInt("fade_minutes", m).apply();
+    }
+
+    /** 사용자가 옮긴 3D 자리. 옮긴 적이 없으면 null. */
+    Place place(String id) {
+        String v = prefs.getString("place_" + id, null);
+        SoundCatalog.Sound s = SoundCatalog.get(id);
+        if (v == null || s == null) return null;
+        String[] p = v.split(",");
+        try {
+            return s.place.withAzDist(Float.parseFloat(p[0]), Float.parseFloat(p[1]));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    void setPlace(String id, Place p) {
+        if (p == null) prefs.edit().remove("place_" + id).apply();
+        else prefs.edit().putString("place_" + id, p.az + "," + p.dist).apply();
+    }
+
+    void clearPlaces() {
+        SharedPreferences.Editor e = prefs.edit();
+        for (String k : prefs.getAll().keySet()) if (k.startsWith("place_")) e.remove(k);
+        e.apply();
     }
 
     boolean askedNotificationPermission() {

@@ -18,10 +18,10 @@ public final class WaterfallGen extends Generator {
         pr = new PinkNoise(new Rng());
         bl = new BrownNoise(new Rng());
         br = new BrownNoise(new Rng());
-        hpL.hp(sr, 70, 0.7f);
-        hpR.hp(sr, 70, 0.7f);
-        lpL.lp(sr, 5200, 0.7f);
-        lpR.lp(sr, 5000, 0.7f);
+        hpL.hp(sr, 220, 0.7f);
+        hpR.hp(sr, 220, 0.7f);
+        lpL.lp(sr, 9500, 0.7f);
+        lpR.lp(sr, 9000, 0.7f);
         rumL = new OnePole(sr, 180);
         rumR = new OnePole(sr, 180);
         ml = new SmoothRandom(rng, 0.85f, 1.15f, 0.03f, 0.08f);
@@ -45,8 +45,8 @@ public final class WaterfallGen extends Generator {
             float nz = rng.bi();
             float wl = lpL.process(hpL.process(pl.next() + spray.sumL * nz)) * (a0 + (a1 - a0) * k);
             float wr = lpR.process(hpR.process(pr.next() + spray.sumR * nz)) * (b0 + (b1 - b0) * k);
-            l[i] = wl + rumL.lp(bl.next()) * 0.7f;
-            r[i] = wr + rumR.lp(br.next()) * 0.7f;
+            l[i] = wl + rumL.lp(bl.next()) * 0.15f;
+            r[i] = wr + rumR.lp(br.next()) * 0.15f;
         }
         splash.render(tl, tr, n);
         for (int i = 0; i < n; i++) {

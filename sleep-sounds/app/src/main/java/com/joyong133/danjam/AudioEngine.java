@@ -9,6 +9,7 @@ import android.os.Process;
 import android.util.Log;
 
 import com.joyong133.danjam.audio.Mixer;
+import com.joyong133.danjam.audio.Place;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -22,18 +23,25 @@ final class AudioEngine implements Runnable {
     /** 한 번에 써 넣는 프레임 수 (약 21ms) */
     private static final int CHUNK = Mixer.BLOCK * 4;
 
-    private static final int SET = 0, REMOVE = 1, REMOVE_ALL = 2, MASTER = 3;
+    private static final int SET = 0, REMOVE = 1, REMOVE_ALL = 2, MASTER = 3, SPATIAL = 4, MOTION = 5, ROOM = 6,
+            VOLUME = 7, TONE = 8, NATURAL = 9, PLACE = 10;
 
     private static final class Cmd {
         final int type;
         final String id;
         final float value, fade;
+        final Place place;
 
         Cmd(int type, String id, float value, float fade) {
+            this(type, id, value, fade, null);
+        }
+
+        Cmd(int type, String id, float value, float fade, Place place) {
             this.type = type;
             this.id = id;
             this.value = value;
             this.fade = fade;
+            this.place = place;
         }
     }
 
@@ -86,6 +94,39 @@ final class AudioEngine implements Runnable {
         post(new Cmd(MASTER, null, level, fadeSec));
     }
 
+    /** 3D 공간 음향 켜기/끄기 */
+    void spatial(boolean on) {
+        post(new Cmd(SPATIAL, null, on ? 1 : 0, 0));
+    }
+
+    void motion(int m) {
+        post(new Cmd(MOTION, null, m, 0));
+    }
+
+    /** 공간감 0~1 */
+    void room(float r) {
+        post(new Cmd(ROOM, null, r, 0));
+    }
+
+    /** 사용자 전체 음량 0~1 */
+    void volume(float v) {
+        post(new Cmd(VOLUME, null, v, 0));
+    }
+
+    /** 톤 −1(부드럽게) ~ 1(선명하게) */
+    void tone(float t) {
+        post(new Cmd(TONE, null, t, 0));
+    }
+
+    void natural(boolean on) {
+        post(new Cmd(NATURAL, null, on ? 1 : 0, 0));
+    }
+
+    /** 소리의 3D 자리. null 이면 기본 자리로. */
+    void place(String id, Place p) {
+        post(new Cmd(PLACE, id, 0, 0, p));
+    }
+
     private void post(Cmd c) {
         queue.add(c);
         wake();
@@ -109,6 +150,27 @@ final class AudioEngine implements Runnable {
                     break;
                 case REMOVE_ALL:
                     mixer.removeAll(c.fade);
+                    break;
+                case SPATIAL:
+                    mixer.setSpatial(c.value > 0);
+                    break;
+                case MOTION:
+                    mixer.setMotion((int) c.value);
+                    break;
+                case ROOM:
+                    mixer.setRoom(c.value);
+                    break;
+                case VOLUME:
+                    mixer.setVolume(c.value);
+                    break;
+                case TONE:
+                    mixer.setTone(c.value);
+                    break;
+                case NATURAL:
+                    mixer.setNatural(c.value > 0);
+                    break;
+                case PLACE:
+                    mixer.setPlace(c.id, c.place);
                     break;
                 default:
                     mixer.setMaster(c.value, c.fade);

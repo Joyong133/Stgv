@@ -1,6 +1,9 @@
 package com.joyong133.danjam.audio;
 
-/** 델타파 바이노럴 비트: 왼쪽과 오른쪽 귀에 2.5Hz 차이 나는 음을 들려준다 (이어폰 권장). */
+/**
+ * 바이노럴 비트: 왼쪽과 오른쪽 귀에 조금 다른 높이의 음을 들려준다 (이어폰 필요).
+ * 차이가 2.5Hz 면 깊은 잠의 델타파, 6Hz 면 꾸벅꾸벅 조는 세타파에 해당한다.
+ */
 public final class BinauralGen extends Generator {
     private final float il, ir, il2, ir2;
     private float pl, pr, pl2, pr2;
@@ -8,12 +11,12 @@ public final class BinauralGen extends Generator {
     private final OnePole soft;
     private final SmoothRandom breath;
 
-    public BinauralGen(float sr) {
+    public BinauralGen(float sr, float beatHz) {
         super(sr);
         il = 200f / sr;
-        ir = 202.5f / sr;
+        ir = (200f + beatHz) / sr;
         il2 = 100f / sr;
-        ir2 = 101.25f / sr;
+        ir2 = (100f + beatHz / 2) / sr;
         pink = new PinkNoise(rng);
         soft = new OnePole(sr, 500);
         breath = new SmoothRandom(rng, 0.85f, 1f, 3f, 7f);

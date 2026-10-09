@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 런처 아이콘 전경: 초승달, 빗방울, 별 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#F6D98B"
+        android:pathData="M47.14,30.01 A22,22 0 1,0 67.96,61.25 A19,19 0 0,1 47.14,30.01 Z" />
+    <path
+        android:fillColor="#9DB4FF"
+        android:pathData="M72,51.7 C73.35,54.85 76.5,57.55 76.5,60.52 A4.5,4.5 0 1,1 67.5,60.52 C67.5,57.55 70.65,54.85 72,51.7 Z" />
+    <path
+        android:fillColor="#9DB4FF"
+        android:pathData="M80,65.75 C81.125,68.375 83.75,70.625 83.75,73.1 A3.75,3.75 0 1,1 76.25,73.1 C76.25,70.625 78.875,68.375 80,65.75 Z" />
+    <path
+        android:fillColor="#9DB4FF"
+        android:pathData="M66,71.45 C66.975,73.725 69.25,75.675 69.25,77.82 A3.25,3.25 0 1,1 62.75,77.82 C62.75,75.675 65.025,73.725 66,71.45 Z" />
+    <path
+        android:fillColor="#FFF3C9"
+        android:pathData="M74,28.5 Q74,33 78.5,33 Q74,33 74,37.5 Q74,33 69.5,33 Q74,33 74,28.5 Z" />
+    <path
+        android:fillColor="#FFF3C9"
+        android:pathData="M33,71 Q33,74 36,74 Q33,74 33,77 Q33,74 30,74 Q33,74 33,71 Z" />
+    <path
+        android:fillColor="#FFF3C9"
+        android:pathData="M84,43.6 Q84,46 86.4,46 Q84,46 84,48.4 Q84,46 81.6,46 Q84,46 84,43.6 Z" />
+</vector>

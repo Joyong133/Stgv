@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">단잠</string>
+    <string name="channel_name">재생 중인 소리</string>
+    <string name="channel_description">잠금화면과 알림창에서 소리를 멈추거나 다시 틀 수 있어요</string>
+</resources>

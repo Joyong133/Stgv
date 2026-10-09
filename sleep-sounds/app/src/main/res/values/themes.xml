@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Danjam" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/bg_window</item>
+        <item name="android:colorBackground">@color/night</item>
+        <item name="android:colorPrimary">@color/night</item>
+        <item name="android:colorPrimaryDark">@color/night</item>
+        <item name="android:colorAccent">@color/moon</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:alertDialogTheme">@style/Theme.Danjam.Dialog</item>
+    </style>
+
+    <style name="Theme.Danjam.Dialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/moon</item>
+        <item name="android:colorBackground">@color/dialog</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_sub</item>
+    </style>
+</resources>

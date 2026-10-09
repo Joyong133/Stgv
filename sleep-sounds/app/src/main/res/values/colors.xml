@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="night">#FF070A17</color>
+    <color name="moon">#FFF6D98B</color>
+    <color name="dialog">#FF1C2552</color>
+    <color name="text">#FFEAEDFF</color>
+    <color name="text_sub">#FF8E97C0</color>
+</resources>

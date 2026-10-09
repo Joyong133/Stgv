@@ -5,6 +5,9 @@
 
 > 비공식 팬 게임입니다. 넥슨 및 메이플스토리와 관련이 없으며, 원작의 이미지·음원 파일은 사용하지 않았습니다.
 
+> 같은 저장소의 [`sleep-sounds/`](sleep-sounds/)에는 빗소리 · 수면 사운드 안드로이드 앱 **단잠**이 있습니다.
+> 설치 파일: [`sleep-sounds/release/danjam.apk`](sleep-sounds/release/danjam.apk)
+
 ## 실행 방법
 
 `index.html`을 브라우저로 열면 바로 시작됩니다. 별도 서버나 빌드가 필요 없습니다.

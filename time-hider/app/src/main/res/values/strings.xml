@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">시간 숨기기</string>
+    <string name="tile_label">시간 숨기기</string>
+    <string name="a11y_description">화면에 보이는 시계와 시간 표시(상태표시줄, 잠금화면, 알림창, 앱 안의 시간 글자)를 검은 상자로 가립니다. 화면 내용은 시간 글자의 위치를 찾는 데만 쓰이고, 저장하거나 밖으로 보내지 않습니다. 이 앱에는 인터넷 권한이 없습니다.</string>
+
+    <string name="status_need_a11y">⚠ 접근성 권한이 꺼져 있어요.\n아래 [접근성 설정 열기]에서 \'시간 숨기기\'를 켜 주세요.</string>
+    <string name="status_on">● 지금 시간을 숨기는 중이에요</string>
+    <string name="status_on_timer">● 지금 시간을 숨기는 중이에요\n(정해 둔 만큼 지나면 저절로 꺼져요)</string>
+    <string name="status_off">○ 꺼져 있어요</string>
+    <string name="toggle_start">지금 시간 숨기기</string>
+    <string name="toggle_stop">숨기기 끄기</string>
+    <string name="toast_need_a11y">접근성 설정에서 \'시간 숨기기\'를 켜면 바로 적용돼요</string>
+
+    <string name="section_duration">얼마 동안 숨길까요?</string>
+    <string name="dur_0">직접 끌 때까지</string>
+    <string name="dur_30">30분</string>
+    <string name="dur_60">1시간</string>
+    <string name="dur_120">2시간</string>
+    <string name="dur_240">4시간</string>
+    <string name="dur_480">8시간</string>
+
+    <string name="section_what">무엇을 가릴까요?</string>
+    <string name="mask_status_bar">맨 위 상태표시줄 통째로 가리기 (시계 포함)</string>
+    <string name="mask_time_text">화면에 보이는 시간 글자 자동으로 가리기\n(잠금화면 시계 · 알림창 · 알림 시각 · 앱 안의 시간)</string>
+    <string name="mask_lock_top">잠금화면 위쪽을 통째로 가리기\n(잠금화면 큰 시계가 그래도 보일 때)</string>
+    <string name="lock_top_label">잠금화면에서 가릴 높이: 위에서 %1$d%%</string>
+
+    <string name="open_a11y">접근성 설정 열기</string>
+    <string name="open_app_info">앱 정보 열기 (제한된 설정 허용)</string>
+
+    <string name="section_guide">사용 방법</string>
+    <string name="guide">1. [접근성 설정 열기] → \'설치된 앱\'(또는 \'다운로드한 앱\') → \'시간 숨기기\' → 사용 켜기.\n\n2. 안드로이드 13 이상에서 \'제한된 설정\' 안내가 뜨며 켜지지 않으면: [앱 정보 열기] → 오른쪽 위 ⋮ 메뉴 → \'제한된 설정 허용\' 후 1번을 다시 하세요.\n\n3. [지금 시간 숨기기]를 누르면 바로 적용돼요. 알림창 → 빠른 설정 편집(연필)에서 \'시간 숨기기\' 타일을 추가하면 한 번에 켜고 끌 수 있어요.\n\n4. 앱이 못 가리는 곳도 있어요. 완전히 안 보이게 하려면 직접 꺼 주세요:\n · AOD(Always On Display, 화면 꺼짐 상태 시계) 끄기\n · 홈 화면의 시계·날씨 위젯 지우기\n · 잠금화면을 켤 때 아주 잠깐 시계가 보이면 \'잠금화면 위쪽 통째로 가리기\'를 켜세요.</string>
+</resources>

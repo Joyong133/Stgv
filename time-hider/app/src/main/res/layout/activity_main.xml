@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/toggle"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="16dp"
+            android:textSize="18sp" />
+
+        <TextView
+            style="@style/Section"
+            android:text="@string/section_duration" />
+
+        <RadioGroup
+            android:id="@+id/duration"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <RadioButton
+                android:id="@+id/dur_0"
+                style="@style/Option"
+                android:text="@string/dur_0" />
+
+            <RadioButton
+                android:id="@+id/dur_30"
+                style="@style/Option"
+                android:text="@string/dur_30" />
+
+            <RadioButton
+                android:id="@+id/dur_60"
+                style="@style/Option"
+                android:text="@string/dur_60" />
+
+            <RadioButton
+                android:id="@+id/dur_120"
+                style="@style/Option"
+                android:text="@string/dur_120" />
+
+            <RadioButton
+                android:id="@+id/dur_240"
+                style="@style/Option"
+                android:text="@string/dur_240" />
+
+            <RadioButton
+                android:id="@+id/dur_480"
+                style="@style/Option"
+                android:text="@string/dur_480" />
+        </RadioGroup>
+
+        <TextView
+            style="@style/Section"
+            android:text="@string/section_what" />
+
+        <CheckBox
+            android:id="@+id/mask_status_bar"
+            style="@style/Option"
+            android:text="@string/mask_status_bar" />
+
+        <CheckBox
+            android:id="@+id/mask_time_text"
+            style="@style/Option"
+            android:text="@string/mask_time_text" />
+
+        <CheckBox
+            android:id="@+id/mask_lock_top"
+            style="@style/Option"
+            android:text="@string/mask_lock_top" />
+
+        <TextView
+            android:id="@+id/lock_top_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="4dp" />
+
+        <SeekBar
+            android:id="@+id/lock_top_percent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:max="80"
+            android:min="10" />
+
+        <Button
+            android:id="@+id/open_a11y"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/open_a11y" />
+
+        <Button
+            android:id="@+id/open_app_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/open_app_info" />
+
+        <TextView
+            style="@style/Section"
+            android:text="@string/section_guide" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:lineSpacingExtra="4dp"
+            android:text="@string/guide"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

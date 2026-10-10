@@ -8,11 +8,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.SystemClock;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -39,14 +35,12 @@ import static com.joyong133.danjam.Ui.TEXT;
 
 /**
  * 집중 소리: 들을 소리와 시간을 먼저 정하고, 그 시간이 끝날 때까지는 다른 소리로 바꾸지 못하게 잠근다.
- * 정하는 화면 → 집중 중 화면(남은 시간, 긴급 해제) → 마친 화면.
+ * 정하는 화면 → 집중 중 화면(남은 시간) → 마친 화면. 시작하면 끝날 때까지 중간에 풀 수 없다.
  */
 final class FocusDialog implements SoundService.Listener {
     private static final int[] MINUTES = {15, 25, 30, 45, 60, 90, 120, 480};
     private static final String[] LABELS = {"15분", "25분", "30분", "45분", "1시간", "90분", "2시간", "8시간"};
     private static final int SETUP = 0, RUNNING = 1, DONE = 2;
-    /** 긴급 해제 단추를 이만큼 누르고 있어야 한다 */
-    private static final long HOLD_MS = 5000;
 
     private final Context c;
     private final SoundService service;
@@ -55,8 +49,6 @@ final class FocusDialog implements SoundService.Listener {
     private final Dialog dialog;
     private final LinearLayout root;
     private int mode = -1;
-    /** 긴급 해제로 끝냈는지 (그러면 '마쳤어요' 대신 정하는 화면으로 돌아간다) */
-    private boolean cancelled;
 
     // 정하는 화면
     private LinkedHashMap<String, Integer> chosen;
@@ -113,7 +105,7 @@ final class FocusDialog implements SoundService.Listener {
     private void render() {
         int next;
         if (service.locked()) next = RUNNING;
-        else if (mode == RUNNING && !cancelled) next = DONE;
+        else if (mode == RUNNING) next = DONE;
         else if (mode == DONE) next = DONE;
         else next = SETUP;
         if (next != mode) {
@@ -234,7 +226,8 @@ final class FocusDialog implements SoundService.Listener {
         body.addView(endHint);
 
         Ui.section(body, "집중하는 동안", null);
-        TextView rules = Ui.text(c, "• 소리를 켜고 끄거나 다른 믹스로 바꿀 수 없어요\n"
+        TextView rules = Ui.text(c, "• 시작하면 끝날 때까지 중간에 풀 수 없어요\n"
+                + "• 소리를 켜고 끄거나 다른 믹스로 바꿀 수 없어요\n"
                 + "• 일시정지·끄기·타이머가 잠겨요 (알림창·잠금화면·이어폰 단추도)\n"
                 + "• 다른 앱의 음악·영상 소리는 저절로 멈춰요"
                 + (service.guardHasAccess() ? "" : " (더 확실하게 막으려면 🎧 소리 공간에서 '알림 접근'을 허용해 주세요)") + "\n"
@@ -317,13 +310,12 @@ final class FocusDialog implements SoundService.Listener {
         }
         alert().setTitle("집중을 시작할까요?")
                 .setMessage("‘" + chosenName + "’을(를) " + label(minutes) + " 동안 들어요.\n"
-                        + "끝날 때까지 소리를 바꾸거나 멈출 수 없어요.")
+                        + "끝날 때까지 소리를 바꾸거나 멈출 수 없고, 중간에 풀 수도 없어요.")
                 .setPositiveButton("시작", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface d, int which) {
                         store.setFocusChoice(minutes, keep);
                         if (beforeStart != null) beforeStart.run();
-                        cancelled = false;
                         service.startFocus(chosen, minutes, keep);
                     }
                 })
@@ -397,8 +389,11 @@ final class FocusDialog implements SoundService.Listener {
         nlp.topMargin = dp(12);
         body.addView(noticeBox, nlp);
 
-        HoldButton unlock = new HoldButton(c);
-        addBottom(unlock);
+        // 시작하면 끝날 때까지 풀 수 없다: 해제 단추 없이 안내만 둔다
+        TextView lockNote = Ui.text(c, "🔒 끝날 때까지 풀 수 없어요", 13, SUB, true);
+        lockNote.setGravity(Gravity.CENTER);
+        lockNote.setPadding(0, dp(14), 0, dp(14));
+        addBottom(lockNote);
     }
 
     private void updateRunning() {
@@ -427,21 +422,6 @@ final class FocusDialog implements SoundService.Listener {
         } else {
             noticeBox.setVisibility(View.GONE);
         }
-    }
-
-    private void confirmCancel() {
-        long min = (service.focusRemaining() + 59_999) / 60_000;
-        alert().setTitle("집중을 끝낼까요?")
-                .setMessage("남은 " + min + "분을 채우지 않고 잠금을 풀어요. 소리는 그대로 계속 나와요.")
-                .setPositiveButton("끝내기", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface d, int which) {
-                        cancelled = true;
-                        service.cancelFocus();
-                    }
-                })
-                .setNegativeButton("계속 집중하기", null)
-                .show();
     }
 
     // ---- 마친 화면 ----
@@ -516,96 +496,6 @@ final class FocusDialog implements SoundService.Listener {
             box.set(l, t, l + size, t + size);
             canvas.drawOval(box, track);
             if (fraction > 0) canvas.drawArc(box, -90f, 360f * fraction, false, arc);
-        }
-    }
-
-    /** 5초 동안 누르고 있어야 하는 긴급 해제 단추. 손을 떼면 처음부터. */
-    private final class HoldButton extends View {
-        private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG), fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final RectF box = new RectF();
-        private final Handler handler = new Handler(Looper.getMainLooper());
-        private long downAt;
-        private boolean done;
-        private final Runnable frame = new Runnable() {
-            @Override
-            public void run() {
-                if (downAt == 0) return;
-                if (SystemClock.uptimeMillis() - downAt >= HOLD_MS) {
-                    downAt = 0;
-                    done = true;
-                    invalidate();
-                    confirmCancel();
-                    return;
-                }
-                invalidate();
-                handler.postDelayed(this, 50);
-            }
-        };
-
-        HoldButton(Context c) {
-            super(c);
-            bg.setColor(0x1FFFFFFF);
-            fill.setColor(0x55FF8A80);
-            label.setColor(SUB);
-            label.setTextSize(Ui.dp(c, 14));
-            label.setTextAlign(Paint.Align.CENTER);
-            label.setFakeBoldText(true);
-            setContentDescription("긴급 해제: 5초 동안 누르고 있으면 집중을 끝낼 수 있어요");
-        }
-
-        @Override
-        protected void onMeasure(int w, int h) {
-            setMeasuredDimension(MeasureSpec.getSize(w), Ui.dp(getContext(), 50));
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent e) {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    downAt = SystemClock.uptimeMillis();
-                    done = false;
-                    label.setColor(TEXT);
-                    handler.post(frame);
-                    getParent().requestDisallowInterceptTouchEvent(true);
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    downAt = 0;
-                    label.setColor(SUB);
-                    handler.removeCallbacks(frame);
-                    invalidate();
-                    return true;
-                default:
-                    return true;
-            }
-        }
-
-        @Override
-        protected void onDetachedFromWindow() {
-            handler.removeCallbacks(frame);
-            super.onDetachedFromWindow();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            float r = getHeight() / 2f;
-            box.set(0, 0, getWidth(), getHeight());
-            canvas.drawRoundRect(box, r, r, bg);
-            String text;
-            if (downAt != 0) {
-                long held = SystemClock.uptimeMillis() - downAt;
-                float f = Math.min(1f, held / (float) HOLD_MS);
-                canvas.save();
-                canvas.clipRect(0, 0, getWidth() * f, getHeight());
-                canvas.drawRoundRect(box, r, r, fill);
-                canvas.restore();
-                text = "계속 누르고 있어요 · " + Math.max(1, (HOLD_MS - held + 999) / 1000);
-            } else {
-                text = done ? "긴급 해제" : "긴급 해제 · 5초 동안 누르기";
-            }
-            float y = getHeight() / 2f - (label.descent() + label.ascent()) / 2f;
-            canvas.drawText(text, getWidth() / 2f, y, label);
         }
     }
 }

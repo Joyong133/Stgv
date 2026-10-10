@@ -645,12 +645,6 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         return true;
     }
 
-    /** 긴급 해제: 화면에서 5초 동안 누르고 한 번 더 확인했을 때만 불린다. */
-    void cancelFocus() {
-        if (focusEnd == 0) return;
-        endFocus();
-    }
-
     private void endFocus() {
         boolean wasMuted = focusMuted;
         focusEnd = 0;

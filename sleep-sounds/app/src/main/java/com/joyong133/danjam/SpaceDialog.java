@@ -39,7 +39,6 @@ final class SpaceDialog implements SoundService.Listener {
     private final SoundStageView stage;
     private final TextView status, empty;
     private final Ui.Segmented mode;
-    private final Switch block;
     private final LinearLayout accessBox;
     private final TextView accessText, accessButton;
 
@@ -171,7 +170,7 @@ final class SpaceDialog implements SoundService.Listener {
             }
         }).view);
 
-        // ---- 다른 앱 소리 막기 ----
+        // ---- 다른 앱 소리 막기 (항상 켜진 고정 기능) ----
         LinearLayout blockRow = new LinearLayout(c);
         blockRow.setGravity(Gravity.CENTER_VERTICAL);
         blockRow.setPadding(0, Ui.dp(c, 22), 0, 0);
@@ -183,19 +182,11 @@ final class SpaceDialog implements SoundService.Listener {
         bh.setPadding(0, Ui.dp(c, 2), Ui.dp(c, 8), 0);
         blockLabels.addView(bh);
         blockRow.addView(blockLabels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        block = new Switch(c);
-        block.setChecked(s.blockOthers());
-        block.setThumbTintList(ColorStateList.valueOf(Ui.MOON));
-        block.setTrackTintList(ColorStateList.valueOf(0x66F6D98B));
-        block.setContentDescription("다른 앱 소리 막기");
-        block.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
-                service.setBlockOthers(on);
-                refreshAccess();
-            }
-        });
-        blockRow.addView(block);
+        // 끌 수 없는 고정 기능이라 스위치 대신 '항상 켜짐' 표시만 둔다
+        TextView always = Ui.text(c, "항상 켜짐", 12, Ui.INK, true);
+        always.setPadding(Ui.dp(c, 12), Ui.dp(c, 6), Ui.dp(c, 12), Ui.dp(c, 6));
+        always.setBackground(Ui.rounded(Ui.MOON, Ui.dp(c, 14)));
+        blockRow.addView(always);
         body.addView(blockRow);
 
         accessBox = new LinearLayout(c);
@@ -270,16 +261,12 @@ final class SpaceDialog implements SoundService.Listener {
 
     /** 다른 앱 소리 막기: 알림 접근이 있으면 더 확실하게 막는다는 안내와 권한 상태 */
     private void refreshAccess() {
-        // 집중 중에는 이 설정과 상관없이 언제나 막는다
-        boolean focus = service.locked() && !service.blockOthers();
-        boolean on = service.blockOthers() || service.locked();
-        accessBox.setVisibility(on ? View.VISIBLE : View.GONE);
-        if (!on) return;
+        // 항상 켜진 고정 기능이라 안내도 늘 보여 준다
         boolean granted = service.guardHasAccess();
-        accessText.setText((focus ? "🎯 지금은 집중 중이라 이 설정과 상관없이 막고 있어요.\n" : "") + (granted
+        accessText.setText(granted
                 ? "✓ 알림 접근이 허용되어 있어요. 소리를 계속 내려는 앱도 바로 일시정지시켜요. (알림 내용은 읽지 않아요)"
                 : "지금은 기본 방식으로 막고 있어요: 대부분의 음악·영상 앱은 멈추지만 일부 앱은 계속 소리를 낼 수 있어요.\n"
-                + "'알림 접근'을 허용하면 다른 앱의 재생 버튼을 단잠이 직접 눌러 더 확실하게 막아요. 알림 내용은 읽지 않아요."));
+                + "'알림 접근'을 허용하면 다른 앱의 재생 버튼을 단잠이 직접 눌러 더 확실하게 막아요. 알림 내용은 읽지 않아요.");
         accessButton.setVisibility(granted ? View.GONE : View.VISIBLE);
     }
 

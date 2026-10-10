@@ -699,22 +699,19 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         changed();
     }
 
-    /** 다른 앱 소리를 막아야 하는지: 설정에서 켰거나, 집중 중이면 언제나 */
+    /** 다른 앱 소리를 막아야 하는지: 재생 중이면 언제나 (고정 기능) */
     private boolean blocking() {
-        return store.blockOthers() || locked();
+        return true;
     }
 
     // ---- 다른 앱 소리 막기 ----
 
-    /** 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막을지 */
+    /**
+     * 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막는 고정 기능.
+     * 항상 켜져 있어 끌 수 없다. 단잠을 멈추면 다른 앱을 자유롭게 틀 수 있다.
+     */
     boolean blockOthers() {
-        return store.blockOthers();
-    }
-
-    void setBlockOthers(boolean on) {
-        store.setBlockOthers(on);
-        refreshGuard();
-        changed();
+        return true;
     }
 
     /** '알림 접근'이 허용되어 있어 더 확실하게 막을 수 있는지 */
@@ -920,7 +917,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (spatialActive()) s += " · 3D";
         if (locked()) s = (focusMuted ? "🎯 집중 중 · 이어폰이 빠져 소리를 꺼 둠" : "🎯 집중 중")
                 + " · " + ((focusRemaining() + 59_999) / 60_000) + "분 남음" + (spatialActive() ? " · 3D" : "");
-        else if (playing && store.blockOthers()) s += " · 다른 소리 막는 중";
+        else if (playing) s += " · 다른 소리 막는 중";
         long left = timerRemaining();
         if (locked()) {
             if (!focusKeep) s += " · 끝나면 꺼짐";

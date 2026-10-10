@@ -349,7 +349,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (timerEnd != 0 && timerRemaining() <= 0) timerEnd = 0;
         fading = false;
         engine.master(1f, 1.5f);
-        if (!wakeLock.isHeld()) wakeLock.acquire(12 * 60 * 60 * 1000L);
+        if (!wakeLock.isHeld()) wakeLock.acquire(49 * 60 * 60 * 1000L);
         registerNoisy();
         goForeground();
         if (blocking()) guard.start();
@@ -646,10 +646,10 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     }
 
     /** 집중은 한 번에 이만큼까지만 남길 수 있다 (늘리기를 거듭해도) */
-    static final long FOCUS_MAX_MS = 12 * 60 * 60_000L;
+    static final long FOCUS_MAX_MS = 48 * 60 * 60_000L;
 
     /**
-     * 집중 시간을 늘린다. 줄이거나 풀 수는 없고, 남은 시간은 최대 12시간까지.
+     * 집중 시간을 늘린다. 줄이거나 풀 수는 없고, 남은 시간은 최대 48시간까지.
      * 끝나면 끄기로 했다면 꺼지는 시각도 함께 늦추고, 작아지던 소리는 원래 음량으로 되돌린다.
      * 실제로 늘렸으면 true.
      */

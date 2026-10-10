@@ -291,7 +291,7 @@ final class FocusDialog implements SoundService.Listener {
             android.widget.Toast.makeText(c, "집중을 " + label(m) + " 늘렸어요 · " + clockOf(left) + " 남았어요",
                     android.widget.Toast.LENGTH_SHORT).show();
         } else if (service.locked()) {
-            android.widget.Toast.makeText(c, "집중은 한 번에 최대 12시간까지예요", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(c, "집중은 최대 48시간까지예요", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 

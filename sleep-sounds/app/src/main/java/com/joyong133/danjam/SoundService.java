@@ -404,6 +404,23 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         changed();
     }
 
+    /**
+     * 흐르고 있는 타이머에 시간을 더한다 (예: "+10분"). 타이머가 없으면 그 시간만큼 새로 켠다.
+     * 이미 소리가 작아지고 있었다면 다시 원래 음량으로 되돌린다.
+     */
+    void addTimer(int minutes) {
+        if (refuseIfLocked() || minutes <= 0) return;
+        long now = SystemClock.elapsedRealtime();
+        long base = timerEnd > now ? timerEnd : now;
+        timerEnd = base + minutes * 60_000L;
+        if (fading && playing) engine.master(1f, 1.5f);
+        fading = false;
+        lastNotifiedMinute = -1;
+        handler.removeCallbacks(tick);
+        handler.post(tick);
+        changed();
+    }
+
     private void onTick() {
         long now = SystemClock.elapsedRealtime();
         if (focusEnd != 0 && now >= focusEnd) endFocus();

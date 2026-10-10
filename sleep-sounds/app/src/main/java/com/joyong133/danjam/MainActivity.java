@@ -79,6 +79,9 @@ public final class MainActivity extends Activity implements SoundService.Listene
     private final Map<String, Tile> tiles = new HashMap<>();
     private ImageButton playButton, clearButton;
     private TextView barTitle, barSub, timerButton, spaceButton, focusButton;
+    /** 타이머가 흐를 때 바 위에 나타나는 '시간 더하기' 줄 */
+    private LinearLayout extendRow;
+    private TextView extendLabel;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -261,6 +264,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         scroll.addView(content);
         column.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        column.addView(buildExtendRow());
         column.addView(buildBar());
 
         root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
@@ -272,6 +276,55 @@ public final class MainActivity extends Activity implements SoundService.Listene
             }
         });
         return root;
+    }
+
+    /** 타이머가 흐를 때만 바 위에 보이는 '+시간' 줄. 지금 타이머에 시간을 더한다. */
+    private View buildExtendRow() {
+        extendRow = new LinearLayout(this);
+        extendRow.setGravity(Gravity.CENTER_VERTICAL);
+        extendRow.setPadding(dp(16), dp(8), dp(8), dp(8));
+        extendRow.setBackground(rounded(0xF2232C5E, dp(24)));
+        extendRow.setElevation(dp(6));
+        extendRow.setVisibility(View.GONE);
+
+        extendLabel = text("", 12, SUB, false);
+        extendLabel.setSingleLine(true);
+        extendLabel.setEllipsize(TextUtils.TruncateAt.END);
+        extendLabel.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_timer, 0, 0, 0);
+        extendLabel.setCompoundDrawablePadding(dp(6));
+        extendLabel.setCompoundDrawableTintList(ColorStateList.valueOf(SKY));
+        extendRow.addView(extendLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        int[] adds = {10, 30, 60};
+        for (final int m : adds) {
+            TextView add = text("+" + minutesLabel(m), 13, INK, true);
+            add.setGravity(Gravity.CENTER);
+            add.setSingleLine(true);
+            add.setPadding(dp(12), dp(8), dp(12), dp(8));
+            add.setBackground(rounded(SKY, dp(18)));
+            add.setContentDescription("타이머 " + minutesLabel(m) + " 더하기");
+            add.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    addTime(m);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.leftMargin = dp(6);
+            extendRow.addView(add, lp);
+        }
+
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.setMargins(dp(12), 0, dp(12), dp(6));
+        extendRow.setLayoutParams(rp);
+        return extendRow;
+    }
+
+    private void addTime(int minutes) {
+        if (service == null) return;
+        service.addTimer(minutes);
+        Toast.makeText(this, "타이머에 " + minutesLabel(minutes) + "을(를) 더했어요 · 이제 "
+                + clock(service.timerRemaining()) + " 남았어요", Toast.LENGTH_SHORT).show();
     }
 
     private View buildBar() {
@@ -662,6 +715,13 @@ public final class MainActivity extends Activity implements SoundService.Listene
         timerButton.setText(left <= 0 ? "타이머" : clock(left));
         long focus = service == null ? 0 : service.focusRemaining();
         focusButton.setText(focus > 0 ? "🎯 " + clock(focus) : "🎯 집중");
+        // 타이머가 흐를 때만 '시간 더하기' 줄을 보여 준다 (집중 중에는 타이머가 잠기므로 숨김)
+        boolean locked = service != null && service.locked();
+        boolean show = left > 0 && !locked;
+        if (extendRow != null) {
+            extendRow.setVisibility(show ? View.VISIBLE : View.GONE);
+            if (show) extendLabel.setText(clock(left) + " 뒤 꺼짐");
+        }
     }
 
     private static String clock(long ms) {

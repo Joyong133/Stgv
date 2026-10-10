@@ -18,8 +18,10 @@ final class Prefs {
 
     static final boolean DEFAULT_MASK_STATUS_BAR = true;
     static final boolean DEFAULT_MASK_TIME_TEXT = true;
-    static final boolean DEFAULT_MASK_LOCK_TOP = false;
-    static final int DEFAULT_LOCK_TOP_PERCENT = 40;
+    static final boolean DEFAULT_MASK_LOCK_TOP = true;
+    static final int DEFAULT_LOCK_TOP_PERCENT = 35;
+    /** 화면이 꺼져 있을 때(AOD) 가릴 비율. 아래쪽 지문 센서 자리는 남겨 둔다. */
+    static final int SCREEN_OFF_TOP_PERCENT = 70;
 
     private Prefs() {}
 

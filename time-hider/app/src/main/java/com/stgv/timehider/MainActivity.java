@@ -80,6 +80,7 @@ public class MainActivity extends Activity implements SharedPreferences.OnShared
         findViewById(R.id.open_app_info).setOnClickListener(v -> startActivity(
                 new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.fromParts("package", getPackageName(), null))));
+        findViewById(R.id.open_aod).setOnClickListener(v -> openAodSettings());
     }
 
     @Override
@@ -133,6 +134,21 @@ public class MainActivity extends Activity implements SharedPreferences.OnShared
 
     private void showLockTopPercent(int percent) {
         lockTopLabel.setText(getString(R.string.lock_top_label, percent));
+    }
+
+    /** AOD 설정은 기종마다 위치가 달라서, 잠금화면 설정 → 디스플레이 설정 → 설정 순으로 연다. */
+    private void openAodSettings() {
+        String[] actions = {
+                "android.settings.LOCK_SCREEN_SETTINGS",
+                Settings.ACTION_DISPLAY_SETTINGS,
+                Settings.ACTION_SETTINGS};
+        for (String action : actions) {
+            try {
+                startActivity(new Intent(action));
+                return;
+            } catch (ActivityNotFoundException ignored) {
+            }
+        }
     }
 
     private void openAccessibilitySettings() {

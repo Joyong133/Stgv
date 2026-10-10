@@ -32,7 +32,7 @@ public class TimeHideService extends AccessibilityService
         implements SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static final String TAG = "TimeHider";
-    private static final long SCAN_DELAY_MS = 60;
+    private static final long SCAN_DELAY_MS = 30;
     private static final long TICK_MS = 2000;
     private static final int MAX_NODES_PER_WINDOW = 3000;
 
@@ -144,8 +144,12 @@ public class TimeHideService extends AccessibilityService
         boolean locked = screenOff || keyguardManager.isKeyguardLocked();
         int topStrip = prefs.getBoolean(Prefs.KEY_MASK_STATUS_BAR, Prefs.DEFAULT_MASK_STATUS_BAR)
                 ? statusBarHeight() : 0;
-        int lockTop = locked && prefs.getBoolean(Prefs.KEY_MASK_LOCK_TOP, Prefs.DEFAULT_MASK_LOCK_TOP)
-                ? prefs.getInt(Prefs.KEY_LOCK_TOP_PERCENT, Prefs.DEFAULT_LOCK_TOP_PERCENT) : 0;
+        int lockTop = 0;
+        if (locked && prefs.getBoolean(Prefs.KEY_MASK_LOCK_TOP, Prefs.DEFAULT_MASK_LOCK_TOP)) {
+            lockTop = prefs.getInt(Prefs.KEY_LOCK_TOP_PERCENT, Prefs.DEFAULT_LOCK_TOP_PERCENT);
+            // 화면이 꺼진 동안(AOD)은 더 넓게 덮고, 켜지는 순간에도 잠금화면 시계가 보이지 않게 한다.
+            if (screenOff) lockTop = Math.max(lockTop, Prefs.SCREEN_OFF_TOP_PERCENT);
+        }
         List<Rect> rects = new ArrayList<>();
         if (prefs.getBoolean(Prefs.KEY_MASK_TIME_TEXT, Prefs.DEFAULT_MASK_TIME_TEXT)) {
             collectTimeRects(rects);
@@ -226,16 +230,24 @@ public class TimeHideService extends AccessibilityService
             AccessibilityNodeInfo root = window.getRoot();
             if (root == null) continue;
             scanned = true;
-            collectFrom(root, out);
+            if (!isOwnApp(root)) collectFrom(root, out);
         }
         if (!scanned) {
             AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null) collectFrom(root, out);
+            if (root != null && !isOwnApp(root)) collectFrom(root, out);
         }
     }
 
+    /** 이 앱 화면의 설정 글자("시간 글자 가리기" 등)는 가리지 않는다. */
+    private boolean isOwnApp(AccessibilityNodeInfo root) {
+        CharSequence pkg = root.getPackageName();
+        return pkg != null && getPackageName().contentEquals(pkg);
+    }
+
     private void collectFrom(AccessibilityNodeInfo root, List<Rect> out) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        long maxIdArea = (long) screenWidth * screenHeight / 2;
         int pad = Math.round(2 * getResources().getDisplayMetrics().density);
         ArrayDeque<AccessibilityNodeInfo> stack = new ArrayDeque<>();
         stack.push(root);
@@ -249,10 +261,17 @@ public class TimeHideService extends AccessibilityService
             // 설명(contentDescription)은 여러 내용을 묶어 둔 큰 묶음에도 붙기 때문에 맨 끝 요소에서만 본다.
             boolean descHit = !textHit && childCount == 0
                     && TimePatterns.containsTime(node.getContentDescription());
-            if (textHit || descHit) {
+            // 이름이 clock·time인 요소: 그림으로 그린 시계, 시계 위젯, 알림의 "5분" 칸 등
+            boolean idHit = !textHit && !descHit
+                    && TimePatterns.isTimeViewId(node.getViewIdResourceName());
+            if (textHit || descHit || idHit) {
                 Rect r = new Rect();
                 node.getBoundsInScreen(r);
-                if (!r.isEmpty() && (textHit || r.height() < screenHeight / 2)) {
+                boolean sizeOk = textHit
+                        || (descHit && r.height() < screenHeight / 2)
+                        || (idHit && (long) r.width() * r.height() <= maxIdArea);
+                // 너무 큰 묶음이면 통째로 덮지 않고 안쪽 요소를 계속 찾는다.
+                if (!r.isEmpty() && sizeOk) {
                     r.inset(-pad, -pad);
                     out.add(r);
                     continue;

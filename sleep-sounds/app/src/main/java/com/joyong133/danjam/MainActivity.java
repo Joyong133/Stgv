@@ -379,6 +379,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         timerButton.setCompoundDrawableTintList(ColorStateList.valueOf(SKY));
         timerButton.setPadding(dp(12), dp(9), dp(12), dp(9));
         timerButton.setBackground(rounded(0x33FFFFFF, dp(20)));
+        timerButton.setContentDescription("타이머");
         timerButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -744,6 +745,37 @@ public final class MainActivity extends Activity implements SoundService.Listene
     }
 
     private void showTimerDialog() {
+        if (service == null) return;
+        long left = service.timerRemaining();
+        // 타이머가 흐르고 있으면: 시간 더하기 · 끄기 · 다시 맞추기 를 먼저 보여 준다
+        if (left > 0 && !service.locked()) {
+            final int[] adds = {10, 30, 60};
+            final String[] items = {
+                    "+10분 더하기", "+30분 더하기", "+1시간 더하기", "타이머 끄기", "다른 시간으로 맞추기…"};
+            dialog().setTitle("타이머 · " + clock(left) + " 남음")
+                    .setItems(items, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int which) {
+                            if (service == null) return;
+                            if (which < adds.length) {
+                                addTime(adds[which]);
+                            } else if (which == adds.length) {
+                                service.setTimer(0);
+                                Toast.makeText(MainActivity.this, "타이머를 껐어요", Toast.LENGTH_SHORT).show();
+                            } else {
+                                showSetTimerDialog();
+                            }
+                        }
+                    })
+                    .setNegativeButton("닫기", null)
+                    .show();
+            return;
+        }
+        showSetTimerDialog();
+    }
+
+    /** 타이머 시간을 새로 고르는 창 (10분 ~ 8시간). */
+    private void showSetTimerDialog() {
         String[] labels = new String[TIMER_MINUTES.length];
         for (int i = 0; i < labels.length; i++) labels[i] = minutesLabel(TIMER_MINUTES[i]);
         dialog().setTitle("잠들기 타이머")

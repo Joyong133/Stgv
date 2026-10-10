@@ -27,6 +27,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 기본값('tools platform-tools')의 레거시 'tools' 패키지는 더 이상 존재하지 않아
+          # 설치가 실패하므로, 기본 설치를 끄고 필요한 패키지만 아래에서 설치한다.
+          packages: ''
 
       - name: Install SDK packages
         run: |

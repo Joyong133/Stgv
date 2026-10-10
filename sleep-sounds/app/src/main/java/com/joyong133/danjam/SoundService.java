@@ -645,6 +645,32 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         return true;
     }
 
+    /** 집중은 한 번에 이만큼까지만 남길 수 있다 (늘리기를 거듭해도) */
+    static final long FOCUS_MAX_MS = 12 * 60 * 60_000L;
+
+    /**
+     * 집중 시간을 늘린다. 줄이거나 풀 수는 없고, 남은 시간은 최대 12시간까지.
+     * 끝나면 끄기로 했다면 꺼지는 시각도 함께 늦추고, 작아지던 소리는 원래 음량으로 되돌린다.
+     * 실제로 늘렸으면 true.
+     */
+    boolean addFocus(int minutes) {
+        if (!locked() || minutes <= 0) return false;
+        long now = SystemClock.elapsedRealtime();
+        long add = Math.min(minutes * 60_000L, now + FOCUS_MAX_MS - focusEnd);
+        if (add <= 0) return false;
+        focusEnd += add;
+        focusTotal += add;
+        if (!focusKeep) timerEnd = focusEnd;
+        if (fading) {
+            fading = false;
+            if (playing && !focusMuted) engine.master(1f, 1.5f);
+        }
+        store.setFocus(System.currentTimeMillis() + (focusEnd - now), focusEnd, bootCount(), focusTotal, focusKeep);
+        lastNotifiedMinute = -1;
+        changed();
+        return true;
+    }
+
     private void endFocus() {
         boolean wasMuted = focusMuted;
         focusEnd = 0;

@@ -265,7 +265,44 @@ final class FocusDialog implements SoundService.Listener {
         start.setAlpha(has ? 1f : 0.45f);
     }
 
-    private static String label(int m) {
+    /** 집중 중 화면의 '+시간' 단추 */
+    static final int[] ADD_MINUTES = {10, 30, 60};
+
+    /** 늘린 시간은 되돌릴 수 없으니 한 번 묻는다. */
+    private void confirmAdd(final int m) {
+        long end = System.currentTimeMillis() + service.focusRemaining() + m * 60_000L;
+        alert().setTitle("집중을 " + label(m) + " 늘릴까요?")
+                .setMessage(new SimpleDateFormat("a h:mm", Locale.KOREA).format(new Date(end)) + "에 끝나요.\n"
+                        + "늘린 시간도 중간에 풀 수 없어요.")
+                .setPositiveButton("늘리기", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        addFocus(c, service, m);
+                    }
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
+    /** 집중 시간을 늘리고 결과를 알려 준다 (메인 화면의 '+시간' 줄도 쓴다). */
+    static void addFocus(Context c, SoundService service, int m) {
+        if (service.addFocus(m)) {
+            long left = service.focusRemaining();
+            android.widget.Toast.makeText(c, "집중을 " + label(m) + " 늘렸어요 · " + clockOf(left) + " 남았어요",
+                    android.widget.Toast.LENGTH_SHORT).show();
+        } else if (service.locked()) {
+            android.widget.Toast.makeText(c, "집중은 한 번에 최대 12시간까지예요", android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    static String clockOf(long ms) {
+        long s = (ms + 999) / 1000;
+        return s >= 3600
+                ? String.format(Locale.US, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
+                : String.format(Locale.US, "%d:%02d", s / 60, s % 60);
+    }
+
+    static String label(int m) {
         for (int i = 0; i < MINUTES.length; i++) if (MINUTES[i] == m) return LABELS[i];
         return m + "분";
     }
@@ -390,9 +427,31 @@ final class FocusDialog implements SoundService.Listener {
         body.addView(noticeBox, nlp);
 
         // 시작하면 끝날 때까지 풀 수 없다: 해제 단추 없이 안내만 둔다
-        TextView lockNote = Ui.text(c, "🔒 끝날 때까지 풀 수 없어요", 13, SUB, true);
+        // 시간은 늘리기만 할 수 있다
+        LinearLayout adds = new LinearLayout(c);
+        for (final int m : ADD_MINUTES) {
+            TextView add = Ui.text(c, "+" + label(m), 15, INK, true);
+            add.setGravity(Gravity.CENTER);
+            add.setSingleLine(true);
+            add.setPadding(0, dp(13), 0, dp(13));
+            add.setBackground(Ui.rounded(SKY, dp(24)));
+            add.setContentDescription("집중 " + label(m) + " 늘리기");
+            add.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    confirmAdd(m);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            if (adds.getChildCount() > 0) lp.leftMargin = dp(8);
+            adds.addView(add, lp);
+        }
+        LinearLayout.LayoutParams alp2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp2.setMargins(dp(18), dp(6), dp(18), 0);
+        root.addView(adds, alp2);
+        TextView lockNote = Ui.text(c, "🔒 끝날 때까지 풀 수 없어요 · 시간은 늘리기만 할 수 있어요", 13, SUB, true);
         lockNote.setGravity(Gravity.CENTER);
-        lockNote.setPadding(0, dp(14), 0, dp(14));
+        lockNote.setPadding(0, dp(6), 0, dp(4));
         addBottom(lockNote);
     }
 

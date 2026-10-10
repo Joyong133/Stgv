@@ -320,8 +320,24 @@ public final class MainActivity extends Activity implements SoundService.Listene
         return extendRow;
     }
 
-    private void addTime(int minutes) {
+    private void addTime(final int minutes) {
         if (service == null) return;
+        if (service.locked()) {
+            // 집중 중에는 집중 시간을 늘린다. 되돌릴 수 없으니 한 번 묻는다
+            long end = System.currentTimeMillis() + service.focusRemaining() + minutes * 60_000L;
+            dialog().setTitle("집중을 " + FocusDialog.label(minutes) + " 늘릴까요?")
+                    .setMessage(new java.text.SimpleDateFormat("a h:mm", Locale.KOREA).format(new java.util.Date(end))
+                            + "에 끝나요.\n늘린 시간도 중간에 풀 수 없어요.")
+                    .setPositiveButton("늘리기", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface d, int which) {
+                            if (service != null) FocusDialog.addFocus(MainActivity.this, service, minutes);
+                        }
+                    })
+                    .setNegativeButton("취소", null)
+                    .show();
+            return;
+        }
         service.addTimer(minutes);
         Toast.makeText(this, "타이머에 " + minutesLabel(minutes) + "을(를) 더했어요 · 이제 "
                 + clock(service.timerRemaining()) + " 남았어요", Toast.LENGTH_SHORT).show();
@@ -716,12 +732,13 @@ public final class MainActivity extends Activity implements SoundService.Listene
         timerButton.setText(left <= 0 ? "타이머" : clock(left));
         long focus = service == null ? 0 : service.focusRemaining();
         focusButton.setText(focus > 0 ? "🎯 " + clock(focus) : "🎯 집중");
-        // 타이머가 흐를 때만 '시간 더하기' 줄을 보여 준다 (집중 중에는 타이머가 잠기므로 숨김)
+        // 타이머가 흐를 때나 집중 중일 때 '시간 더하기' 줄을 보여 준다 (집중 중에는 집중 시간을 늘린다)
         boolean locked = service != null && service.locked();
-        boolean show = left > 0 && !locked;
+        boolean show = left > 0 || locked;
         if (extendRow != null) {
             extendRow.setVisibility(show ? View.VISIBLE : View.GONE);
-            if (show) extendLabel.setText(clock(left) + " 뒤 꺼짐");
+            if (locked) extendLabel.setText("집중 " + clock(focus) + " 남음");
+            else if (show) extendLabel.setText(clock(left) + " 뒤 꺼짐");
         }
     }
 

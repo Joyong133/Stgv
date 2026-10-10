@@ -11,46 +11,50 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.Process;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.view.accessibility.AccessibilityWindowInfo;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * 접근성 오버레이로 시간 표시를 가린다.
  * 접근성 오버레이는 상태표시줄 · 알림창 · 잠금화면보다 위에 그려지므로 그곳의 시계도 덮을 수 있다.
+ *
+ * <p>화면을 훑는 일은 {@link TimeScanner}가 전용 스레드에서 하고, 이 클래스는 메인 스레드에서 그리기만 한다.
  */
 public class TimeHideService extends AccessibilityService
         implements SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static final String TAG = "TimeHider";
-    private static final long SCAN_DELAY_MS = 30;
-    private static final long TICK_MS = 2000;
-    private static final int MAX_NODES_PER_WINDOW = 3000;
+    private static final long TICK_MS = 3000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private HandlerThread scanThread;
+    private Handler scanHandler;
+    private TimeScanner scanner;
+
     private SharedPreferences prefs;
     private WindowManager windowManager;
     private KeyguardManager keyguardManager;
     private MaskView mask;
-    private boolean scanPending;
     private boolean screenOff;
+    private boolean locked;
     private boolean receiverRegistered;
 
-    private final Runnable scanRunnable = () -> {
-        scanPending = false;
-        refresh();
-    };
+    // 아래 값들은 메인 스레드에서만 다룬다.
+    private boolean scanEnabled;
+    private List<Rect> textRects = Collections.emptyList();
+    private int topStrip;
+    private int lockTop;
 
-    private final Runnable tickRunnable = this::refresh;
+    private final Runnable tickRunnable = this::onTick;
 
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override
@@ -58,6 +62,7 @@ public class TimeHideService extends AccessibilityService
             // 화면이 꺼지면 미리 잠금화면용 가리개를 깔아 둬서, 켜지는 순간에도 시계가 안 보이게 한다.
             screenOff = Intent.ACTION_SCREEN_OFF.equals(intent.getAction());
             refresh();
+            if (scanEnabled) onScanThread(scanner::rescanAll);
         }
     };
 
@@ -68,6 +73,11 @@ public class TimeHideService extends AccessibilityService
         keyguardManager = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         prefs = Prefs.get(this);
         prefs.registerOnSharedPreferenceChangeListener(this);
+
+        scanThread = new HandlerThread("time-scan", Process.THREAD_PRIORITY_FOREGROUND);
+        scanThread.start();
+        scanHandler = new Handler(scanThread.getLooper());
+        scanner = new TimeScanner(this, scanHandler, rects -> handler.post(() -> onRectsFound(rects)));
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_SCREEN_ON);
@@ -86,9 +96,39 @@ public class TimeHideService extends AccessibilityService
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (mask == null || scanPending) return;
-        scanPending = true;
-        handler.postDelayed(scanRunnable, SCAN_DELAY_MS);
+        if (mask == null) return;
+        int type = event.getEventType();
+        if (type == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+                || type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // 잠금화면이 열리거나 닫혔으면 잠금화면 가리개를 바로 맞춘다.
+            boolean nowLocked = screenOff || keyguardManager.isKeyguardLocked();
+            if (nowLocked != locked) refresh();
+        }
+        if (!scanEnabled) return;
+
+        int windowId = event.getWindowId();
+        if (type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                && event.getContentChangeTypes() == AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT) {
+            AccessibilityNodeInfo source = event.getSource();
+            if (source != null) {
+                onScanThread(() -> scanner.onTextChanged(windowId, source));
+                return;
+            }
+        } else if (type == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            AccessibilityNodeInfo source = event.getSource();
+            int dx = 0;
+            int dy = 0;
+            if (Build.VERSION.SDK_INT >= 28) {
+                // -1은 "모름"을 뜻한다.
+                dx = event.getScrollDeltaX() == -1 ? 0 : event.getScrollDeltaX();
+                dy = event.getScrollDeltaY() == -1 ? 0 : event.getScrollDeltaY();
+            }
+            int scrollX = dx;
+            int scrollY = dy;
+            onScanThread(() -> scanner.onScrolled(windowId, source, scrollX, scrollY));
+            return;
+        }
+        onScanThread(() -> scanner.onWindowChanged(windowId));
     }
 
     @Override
@@ -114,7 +154,12 @@ public class TimeHideService extends AccessibilityService
 
     private void shutdown() {
         handler.removeCallbacksAndMessages(null);
-        scanPending = false;
+        setScanEnabled(false);
+        if (scanThread != null) {
+            scanThread.quitSafely();
+            scanThread = null;
+            scanHandler = null;
+        }
         if (prefs != null) {
             prefs.unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -129,6 +174,38 @@ public class TimeHideService extends AccessibilityService
         Prefs.updateTile(this);
     }
 
+    private void onScanThread(Runnable task) {
+        if (scanHandler != null) scanHandler.post(task);
+    }
+
+    private void onRectsFound(List<Rect> rects) {
+        if (!scanEnabled) return;
+        textRects = rects;
+        applyMask();
+    }
+
+    private void applyMask() {
+        if (mask != null) mask.update(topStrip, lockTop, textRects);
+    }
+
+    private void setScanEnabled(boolean enabled) {
+        if (enabled == scanEnabled || scanner == null) return;
+        scanEnabled = enabled;
+        textRects = Collections.emptyList();
+        onScanThread(enabled ? scanner::rescanAll : scanner::reset);
+    }
+
+    /** 이벤트 없이 바뀌는 화면도 있어서, 화면이 켜져 있는 동안은 가끔 전체를 다시 훑는다. */
+    private void onTick() {
+        refresh();
+        if (scanEnabled) {
+            onScanThread(() -> {
+                if (!scanner.isScrolling()) scanner.rescanAll();
+            });
+        }
+    }
+
+    /** 켜고 끄기, 상태표시줄 · 잠금화면 가리개처럼 화면을 훑지 않아도 되는 부분을 맞춘다. */
     private void refresh() {
         if (prefs == null) return;
         if (Prefs.isExpired(prefs)) {
@@ -136,27 +213,24 @@ public class TimeHideService extends AccessibilityService
         }
         if (!Prefs.isActive(prefs)) {
             handler.removeCallbacks(tickRunnable);
+            setScanEnabled(false);
             detachMask();
             return;
         }
         if (!attachMask()) return;
 
-        boolean locked = screenOff || keyguardManager.isKeyguardLocked();
-        int topStrip = prefs.getBoolean(Prefs.KEY_MASK_STATUS_BAR, Prefs.DEFAULT_MASK_STATUS_BAR)
+        locked = screenOff || keyguardManager.isKeyguardLocked();
+        topStrip = prefs.getBoolean(Prefs.KEY_MASK_STATUS_BAR, Prefs.DEFAULT_MASK_STATUS_BAR)
                 ? statusBarHeight() : 0;
-        int lockTop = 0;
+        lockTop = 0;
         if (locked && prefs.getBoolean(Prefs.KEY_MASK_LOCK_TOP, Prefs.DEFAULT_MASK_LOCK_TOP)) {
             lockTop = prefs.getInt(Prefs.KEY_LOCK_TOP_PERCENT, Prefs.DEFAULT_LOCK_TOP_PERCENT);
             // 화면이 꺼진 동안(AOD)은 더 넓게 덮고, 켜지는 순간에도 잠금화면 시계가 보이지 않게 한다.
             if (screenOff) lockTop = Math.max(lockTop, Prefs.SCREEN_OFF_TOP_PERCENT);
         }
-        List<Rect> rects = new ArrayList<>();
-        if (prefs.getBoolean(Prefs.KEY_MASK_TIME_TEXT, Prefs.DEFAULT_MASK_TIME_TEXT)) {
-            collectTimeRects(rects);
-        }
-        mask.update(topStrip, lockTop, rects);
+        setScanEnabled(prefs.getBoolean(Prefs.KEY_MASK_TIME_TEXT, Prefs.DEFAULT_MASK_TIME_TEXT));
+        applyMask();
 
-        // 이벤트 없이 바뀌는 화면도 있어서, 화면이 켜져 있는 동안은 주기적으로 다시 확인한다.
         handler.removeCallbacks(tickRunnable);
         if (!screenOff) {
             handler.postDelayed(tickRunnable, TICK_MS);
@@ -173,7 +247,8 @@ public class TimeHideService extends AccessibilityService
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
         if (Build.VERSION.SDK_INT >= 30) {
@@ -214,73 +289,5 @@ public class TimeHideService extends AccessibilityService
             height = Math.round(24 * density);
         }
         return height + Math.round(2 * density);
-    }
-
-    /** 지금 화면에 떠 있는 모든 창(상태표시줄 · 알림창 · 잠금화면 · 앱)에서 시간 글자의 위치를 찾는다. */
-    private void collectTimeRects(List<Rect> out) {
-        List<AccessibilityWindowInfo> windows;
-        try {
-            windows = getWindows();
-        } catch (RuntimeException e) {
-            windows = Collections.emptyList();
-        }
-        boolean scanned = false;
-        for (AccessibilityWindowInfo window : windows) {
-            if (window.getType() == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue;
-            AccessibilityNodeInfo root = window.getRoot();
-            if (root == null) continue;
-            scanned = true;
-            if (!isOwnApp(root)) collectFrom(root, out);
-        }
-        if (!scanned) {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null && !isOwnApp(root)) collectFrom(root, out);
-        }
-    }
-
-    /** 이 앱 화면의 설정 글자("시간 글자 가리기" 등)는 가리지 않는다. */
-    private boolean isOwnApp(AccessibilityNodeInfo root) {
-        CharSequence pkg = root.getPackageName();
-        return pkg != null && getPackageName().contentEquals(pkg);
-    }
-
-    private void collectFrom(AccessibilityNodeInfo root, List<Rect> out) {
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        int screenHeight = getResources().getDisplayMetrics().heightPixels;
-        long maxIdArea = (long) screenWidth * screenHeight / 2;
-        int pad = Math.round(2 * getResources().getDisplayMetrics().density);
-        ArrayDeque<AccessibilityNodeInfo> stack = new ArrayDeque<>();
-        stack.push(root);
-        int visited = 0;
-        while (!stack.isEmpty() && visited++ < MAX_NODES_PER_WINDOW) {
-            AccessibilityNodeInfo node = stack.pop();
-            if (!node.isVisibleToUser()) continue;
-            int childCount = node.getChildCount();
-
-            boolean textHit = TimePatterns.containsTime(node.getText());
-            // 설명(contentDescription)은 여러 내용을 묶어 둔 큰 묶음에도 붙기 때문에 맨 끝 요소에서만 본다.
-            boolean descHit = !textHit && childCount == 0
-                    && TimePatterns.containsTime(node.getContentDescription());
-            // 이름이 clock·time인 요소: 그림으로 그린 시계, 시계 위젯, 알림의 "5분" 칸 등
-            boolean idHit = !textHit && !descHit
-                    && TimePatterns.isTimeViewId(node.getViewIdResourceName());
-            if (textHit || descHit || idHit) {
-                Rect r = new Rect();
-                node.getBoundsInScreen(r);
-                boolean sizeOk = textHit
-                        || (descHit && r.height() < screenHeight / 2)
-                        || (idHit && (long) r.width() * r.height() <= maxIdArea);
-                // 너무 큰 묶음이면 통째로 덮지 않고 안쪽 요소를 계속 찾는다.
-                if (!r.isEmpty() && sizeOk) {
-                    r.inset(-pad, -pad);
-                    out.add(r);
-                    continue;
-                }
-            }
-            for (int i = childCount - 1; i >= 0; i--) {
-                AccessibilityNodeInfo child = node.getChild(i);
-                if (child != null) stack.push(child);
-            }
-        }
     }
 }

@@ -5,5 +5,5 @@
     android:accessibilityFlags="flagRetrieveInteractiveWindows|flagIncludeNotImportantViews|flagReportViewIds"
     android:canRetrieveWindowContent="true"
     android:description="@string/a11y_description"
-    android:notificationTimeout="50"
+    android:notificationTimeout="0"
     android:settingsActivity="com.stgv.timehider.MainActivity" />

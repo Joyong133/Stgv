@@ -10,8 +10,8 @@ android {
         applicationId 'com.stgv.timehider'
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '1.2'
     }
 
     // 고정 서명 키: 새 버전을 기존 앱 위에 그대로 덮어 설치할 수 있게 한다.

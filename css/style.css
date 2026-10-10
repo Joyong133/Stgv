@@ -100,6 +100,14 @@ body.touch #help { display: none; }
   touch-action: none;
 }
 .pbtn.on, .sbtn.on { background: var(--maple-deep); border-color: var(--maple); }
+/* 소리 고정(잠금): 자물쇠 표시 + 눈에 띄는 테두리. 짧은 탭이 막히면 짧게 흔들림. */
+.sbtn.locked { border-color: var(--maple); box-shadow: 0 0 0 2px rgba(255, 154, 31, .35) inset; }
+.sbtn.shake { animation: sbtn-shake .3s ease; }
+@keyframes sbtn-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-3px); }
+  40%, 80% { transform: translateX(3px); }
+}
 .dpad .up { left: 43px; top: 0; }
 .dpad .down { left: 43px; bottom: 0; }
 .dpad .left { left: 0; top: 43px; }

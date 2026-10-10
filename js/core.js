@@ -71,7 +71,7 @@ const Input = {
     if (!this.held[k]) { this.pressed[k] = true; this.holdTime[k] = 0; }
     this.held[k] = true;
     Sound.init();
-    if (k === 'sound') Sound.toggle();
+    // 'sound' 키는 keydown 리스너에서 직접 처리(토글/잠금)한다.
   },
   up(k) { this.held[k] = false; },
   // 메뉴용: 처음 한 번 + 길게 누르면 반복
@@ -99,7 +99,14 @@ window.addEventListener('keydown', e => {
   const k = Input.codes[e.code];
   if (!k) return;
   e.preventDefault();
-  if (!e.repeat) Input.down(k);
+  if (e.repeat) return;
+  if (k === 'sound') {
+    Sound.init();
+    if (e.shiftKey) Sound.toggleLock(); else Sound.toggle();
+    refreshSoundBtns();
+    return;
+  }
+  Input.down(k);
 });
 window.addEventListener('keyup', e => {
   const k = Input.codes[e.code];
@@ -107,18 +114,60 @@ window.addEventListener('keyup', e => {
 });
 window.addEventListener('blur', () => { Input.held = {}; });
 
+// 소리 버튼의 표시(켜짐/꺼짐·잠금 자물쇠)를 현재 상태에 맞춘다.
+function updateSoundBtn(btn) {
+  btn.classList.toggle('on', !Sound.muted);
+  btn.classList.toggle('locked', Sound.locked);
+  btn.textContent = Sound.locked ? '🔒소리' : '소리';
+  btn.setAttribute('aria-label', Sound.locked
+    ? '소리 고정됨 — 길게 눌러 해제'
+    : '소리 켜기/끄기 (길게 눌러 고정)');
+}
+function refreshSoundBtns() {
+  document.querySelectorAll('#pad [data-key="sound"]').forEach(updateSoundBtn);
+}
+
 function setupTouch() {
   const mark = () => { if (!document.body.classList.contains('touch')) { document.body.classList.add('touch'); resize(); } };
   window.addEventListener('touchstart', mark, { passive: true, once: true });
   if (matchMedia('(pointer: coarse)').matches) mark();
   document.querySelectorAll('#pad [data-key]').forEach(btn => {
     const k = btn.dataset.key;
-    if (k === 'sound' || k === 'run') {
-      if (k === 'sound') btn.classList.toggle('on', !Sound.muted);
+    if (k === 'sound') {
+      updateSoundBtn(btn);
+      let holdTimer = null, longFired = false;
+      const clearHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+      btn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        Sound.init();
+        longFired = false;
+        clearHold();
+        holdTimer = setTimeout(() => {           // 길게 누르면 잠금 토글
+          longFired = true; holdTimer = null;
+          Sound.toggleLock();
+          if (navigator.vibrate) { try { navigator.vibrate(30); } catch (e2) {} }
+          updateSoundBtn(btn);
+        }, 600);
+      });
+      btn.addEventListener('pointerup', e => {
+        e.preventDefault();
+        clearHold();
+        if (longFired) { longFired = false; return; }
+        Sound.init();
+        if (!Sound.toggle()) {                     // 잠금 중이라 토글 거부됨
+          btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+        }
+        updateSoundBtn(btn);
+      });
+      btn.addEventListener('pointercancel', e => { e.preventDefault(); clearHold(); longFired = false; });
+      btn.addEventListener('lostpointercapture', () => { clearHold(); longFired = false; });
+      btn.addEventListener('contextmenu', e => e.preventDefault());
+      return;
+    }
+    if (k === 'run') {
       btn.addEventListener('click', () => {
         Sound.init();
-        if (k === 'sound') { Sound.toggle(); btn.classList.toggle('on', !Sound.muted); }
-        else { Input.runToggle = !Input.runToggle; btn.classList.toggle('on', Input.runToggle); }
+        Input.runToggle = !Input.runToggle; btn.classList.toggle('on', Input.runToggle);
       });
       return;
     }
@@ -147,7 +196,7 @@ const NOTE = (() => {
 })();
 
 const Sound = {
-  ac: null, master: null, muted: false, song: null, songName: null, timer: null,
+  ac: null, master: null, muted: false, locked: false, song: null, songName: null, timer: null,
   init() {
     if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume(); return; }
     try {
@@ -158,10 +207,27 @@ const Sound = {
       if (this.songName) { const n = this.songName; this.songName = null; this.bgm(n); }
     } catch (e) { this.ac = null; }
   },
+  apply() { if (this.master) this.master.gain.value = this.muted ? 0 : 0.5; },
+  save() {
+    try {
+      localStorage.setItem('maple_rpg_mute', this.muted ? '1' : '0');
+      localStorage.setItem('maple_rpg_sound_locked', this.locked ? '1' : '0');
+    } catch (e) { /* 저장 불가 */ }
+  },
+  // 짧은 탭/ M: 음소거 토글. 잠금 중이면 바뀌지 않고 false 반환.
   toggle() {
+    if (this.locked) return false;
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
-    try { localStorage.setItem('maple_rpg_mute', this.muted ? '1' : '0'); } catch (e) { /* 저장 불가 */ }
+    this.apply();
+    this.save();
+    return true;
+  },
+  // 길게 누르기 / Shift+M: 소리 고정(잠금) 토글. 잠그면 강제 음소거로 고정.
+  toggleLock() {
+    this.locked = !this.locked;
+    if (this.locked) { this.muted = true; this.apply(); }
+    this.save();
+    return this.locked;
   },
   tone(freq, dur, type = 'square', vol = 0.12, when = 0, slide = 0) {
     if (!this.ac || !freq) return;
@@ -240,7 +306,10 @@ const Sound = {
   },
   stopBgm() { if (this.timer) clearInterval(this.timer); this.timer = null; this.songName = null; }
 };
-try { Sound.muted = localStorage.getItem('maple_rpg_mute') === '1'; } catch (e) { /* 무시 */ }
+try {
+  Sound.locked = localStorage.getItem('maple_rpg_sound_locked') === '1';
+  Sound.muted = Sound.locked || localStorage.getItem('maple_rpg_mute') === '1';
+} catch (e) { /* 무시 */ }
 
 // 모두 이 게임을 위해 새로 쓴 짧은 곡들
 const SONGS = {

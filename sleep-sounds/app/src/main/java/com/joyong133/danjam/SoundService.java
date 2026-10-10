@@ -26,6 +26,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -42,7 +43,7 @@ import java.util.Map;
  * 화면이 꺼져도 소리가 계속 나도록 재생을 맡는 서비스.
  * 지금 켜 둔 소리 조합, 재생/일시정지, 잠들기 타이머, 알림과 잠금화면 컨트롤,
  * 3D 공간 음향(이어폰을 꽂으면 자동으로 켜짐)과 소리 설정, 호흡 안내 소리,
- * 재생 중 다른 앱 소리 막기를 관리한다.
+ * 재생 중 다른 앱 소리 막기, 집중 소리(정한 시간 동안 소리를 바꾸거나 멈출 수 없는 잠금)를 관리한다.
  * 모든 메서드는 메인 스레드에서 호출한다.
  */
 public final class SoundService extends Service implements AudioManager.OnAudioFocusChangeListener {
@@ -93,21 +94,40 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     private final Runnable regrab = new Runnable() {
         @Override
         public void run() {
-            if (!playing) return;
-            // 포커스를 다시 가져오면, 소리를 내려던 앱은 포커스를 잃고 스스로 멈춘다
-            if (requestFocus()) onBlocked(null);
-            else pause();
+            // 집중 중에 통화가 끝나기를 기다리는 중인지
+            boolean waiting = !playing && resumeOnFocus && locked();
+            if (!playing && !waiting) return;
+            // 포커스를 다시 가져오면, 소리를 내려던 앱은 포커스를 잃고 스스로 멈춘다.
+            // 전화·보이스톡처럼 통화 중일 때는 빼앗지 않는다
+            if (!inCall() && requestFocus()) {
+                if (waiting) play();
+                else onBlocked(null);
+            } else if (locked()) {
+                // 통화 중: 잠깐 멈췄다가 통화가 끝나면 이어서 듣는다
+                resumeOnFocus = true;
+                if (playing) pause(true);
+                handler.postDelayed(this, 3000);
+            } else {
+                pause();
+            }
         }
     };
     /** SystemClock.elapsedRealtime 기준 타이머 종료 시각, 0이면 타이머 없음 */
     private long timerEnd;
+    /** 집중 소리 종료 시각 (elapsedRealtime), 0이면 집중 중이 아님 */
+    private long focusEnd, focusTotal;
+    /** 집중이 끝난 뒤에도 계속 들을지, 이어폰이 빠져 소리만 잠시 꺼 둔 상태인지 */
+    private boolean focusKeep, focusMuted;
+    private long lastLockToast;
     private long lastNotifiedMinute = -1;
 
     private final BroadcastReceiver noisy = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // 이어폰을 뽑으면 스피커로 갑자기 크게 나오지 않도록 멈춘다
-            pause();
+            // 이어폰을 뽑으면 스피커로 갑자기 크게 나오지 않도록 멈춘다.
+            // 집중 중에는 멈추는 대신 소리만 꺼 두고, 다시 연결하면 이어서 들려준다
+            if (locked()) muteForUnplug();
+            else pause();
         }
     };
 
@@ -152,6 +172,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         };
         audio.registerAudioDeviceCallback(deviceCallback, handler);
         for (Map.Entry<String, Integer> e : mix.entrySet()) engine.set(e.getKey(), gain(e.getKey(), e.getValue()), 0f);
+        restoreFocus();
 
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW);
@@ -197,12 +218,17 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? null : intent.getAction();
         if (ACTION_TOGGLE.equals(action)) {
-            if (playing) pause();
+            if (playing && !focusMuted) pause();
             else play();
         } else if (ACTION_STOP.equals(action)) {
             stopPlayback();
+        } else if (intent == null) {
+            // 집중 중에 시스템이 서비스를 정리했다가 다시 살렸다: 남은 시간 동안 이어서 들려준다
+            if (locked()) play();
+            else if (!playing) stopSelf();
         }
-        return START_NOT_STICKY;
+        // 집중 중에는 시스템이 서비스를 정리해도 다시 살아나게 한다
+        return locked() ? START_STICKY : START_NOT_STICKY;
     }
 
     @Override
@@ -259,6 +285,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 소리 하나를 켜거나 끈다. 켤 때 재생 중이 아니면 재생을 시작한다. */
     void toggle(String id) {
+        if (refuseIfLocked()) return;
         if (mix.containsKey(id)) {
             mix.remove(id);
             engine.remove(id, 1.2f);
@@ -284,16 +311,22 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 조합을 통째로 바꾸고 재생한다 (추천 믹스, 저장한 믹스). */
     void applyMix(Map<String, Integer> next) {
-        for (String id : mix.keySet()) if (!next.containsKey(id)) engine.remove(id, 1.5f);
-        mix.clear();
-        mix.putAll(next);
-        for (Map.Entry<String, Integer> e : mix.entrySet()) engine.set(e.getKey(), gain(e.getKey(), e.getValue()), 1.5f);
+        if (refuseIfLocked()) return;
+        replaceMix(next);
         changed();
         play();
     }
 
+    private void replaceMix(Map<String, Integer> next) {
+        for (String id : mix.keySet()) if (!next.containsKey(id)) engine.remove(id, 1.5f);
+        mix.clear();
+        mix.putAll(next);
+        for (Map.Entry<String, Integer> e : mix.entrySet()) engine.set(e.getKey(), gain(e.getKey(), e.getValue()), 1.5f);
+    }
+
     /** 모든 소리를 끈다. */
     void clear() {
+        if (refuseIfLocked()) return;
         for (String id : mix.keySet()) engine.remove(id, 1f);
         mix.clear();
         if (breathId == null) pause();
@@ -301,6 +334,10 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     }
 
     void play() {
+        if (focusMuted) {
+            unmute();
+            return;
+        }
         if (mix.isEmpty() && breathId == null) return;
         if (!requestFocus()) {
             Log.w(TAG, "오디오 포커스를 받지 못해 재생하지 않음");
@@ -315,13 +352,14 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (!wakeLock.isHeld()) wakeLock.acquire(12 * 60 * 60 * 1000L);
         registerNoisy();
         goForeground();
-        if (store.blockOthers()) guard.start();
+        if (blocking()) guard.start();
         handler.removeCallbacks(tick);
-        if (timerEnd != 0) handler.post(tick);
+        if (timerEnd != 0 || focusEnd != 0) handler.post(tick);
         changed();
     }
 
     void pause() {
+        if (refuseIfLocked()) return;
         pause(false);
     }
 
@@ -344,6 +382,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 재생을 멈추고 알림까지 없앤다. 화면이 없으면 서비스도 끝난다. */
     void stopPlayback() {
+        if (refuseIfLocked()) return;
         pause();
         timerEnd = 0;
         fading = false;
@@ -355,6 +394,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 잠들기 타이머. minutes 가 0 이면 끈다. */
     void setTimer(int minutes) {
+        if (refuseIfLocked()) return;
         timerEnd = minutes > 0 ? SystemClock.elapsedRealtime() + minutes * 60_000L : 0;
         if (fading && playing) engine.master(1f, 1.5f);
         fading = false;
@@ -365,16 +405,23 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     }
 
     private void onTick() {
-        if (timerEnd == 0) return;
-        long left = timerEnd - SystemClock.elapsedRealtime();
-        if (left <= 0) {
-            timerEnd = 0;
-            stopPlayback();
-            return;
-        }
-        if (playing && !fading && left <= store.fadeMinutes() * 60_000L) {
-            fading = true;
-            engine.master(0f, left / 1000f);
+        long now = SystemClock.elapsedRealtime();
+        if (focusEnd != 0 && now >= focusEnd) endFocus();
+        if (timerEnd == 0 && focusEnd == 0) return;
+        long left;
+        if (timerEnd != 0) {
+            left = timerEnd - now;
+            if (left <= 0) {
+                timerEnd = 0;
+                stopPlayback();
+                return;
+            }
+            if (playing && !fading && left <= store.fadeMinutes() * 60_000L) {
+                fading = true;
+                engine.master(0f, left / 1000f);
+            }
+        } else {
+            left = focusEnd - now;
         }
         long minute = (left + 59_999) / 60_000;
         if (minute != lastNotifiedMinute) {
@@ -420,6 +467,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (now == headphones) return;
         headphones = now;
         engine.spatial(spatialActive());
+        if (headphones && focusMuted) unmute();
         changed();
     }
 
@@ -523,6 +571,139 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         for (SoundCatalog.Sound s : SoundCatalog.ALL) engine.place(s.id, null);
     }
 
+    // ---- 집중 소리 ----
+
+    /** 집중 중인지: 끝날 때까지 소리를 바꾸거나 멈출 수 없고, 다른 앱 소리도 막힌다 */
+    boolean locked() {
+        return focusEnd != 0 && SystemClock.elapsedRealtime() < focusEnd;
+    }
+
+    /** 집중 남은 시간(ms) */
+    long focusRemaining() {
+        return focusEnd == 0 ? 0 : Math.max(0, focusEnd - SystemClock.elapsedRealtime());
+    }
+
+    /** 이번 집중의 전체 길이(ms) */
+    long focusTotal() {
+        return focusTotal;
+    }
+
+    boolean focusKeep() {
+        return focusKeep;
+    }
+
+    /** 집중 중에 이어폰이 빠져 소리만 잠시 꺼 둔 상태 */
+    boolean focusMuted() {
+        return focusMuted;
+    }
+
+    /**
+     * 집중 시작: next(비어 있으면 지금 켜 둔 소리)를 minutes 분 동안 끝까지 듣는다.
+     * keepAfter 가 false 면 끝날 때 소리가 천천히 작아지며 꺼지고, true 면 잠금만 풀리고 계속 들린다.
+     */
+    boolean startFocus(Map<String, Integer> next, int minutes, boolean keepAfter) {
+        if (locked() || minutes <= 0) return false;
+        if (next != null && !next.isEmpty()) replaceMix(next);
+        if (mix.isEmpty()) return false;
+        long duration = minutes * 60_000L;
+        focusEnd = SystemClock.elapsedRealtime() + duration;
+        focusKeep = keepAfter;
+        focusMuted = false;
+        focusTotal = duration;
+        store.setFocus(System.currentTimeMillis() + duration, focusEnd, bootCount(), duration, keepAfter);
+        // 끝날 때 끄기로 했으면 타이머가 같은 순간에 끝나고, 계속 듣기면 도중에 꺼지는 타이머를 없앤다
+        timerEnd = keepAfter ? 0 : focusEnd;
+        fading = false;
+        lastNotifiedMinute = -1;
+        play();
+        try {
+            // onStartCommand 가 START_STICKY 를 돌려주게 해서, 시스템이 정리해도 다시 살아나게 한다
+            startService(new Intent(this, SoundService.class));
+        } catch (RuntimeException e) {
+            Log.w(TAG, "서비스 시작 실패", e);
+        }
+        handler.removeCallbacks(tick);
+        handler.post(tick);
+        changed();
+        return true;
+    }
+
+    /** 긴급 해제: 화면에서 5초 동안 누르고 한 번 더 확인했을 때만 불린다. */
+    void cancelFocus() {
+        if (focusEnd == 0) return;
+        endFocus();
+    }
+
+    private void endFocus() {
+        boolean wasMuted = focusMuted;
+        focusEnd = 0;
+        focusMuted = false;
+        store.clearFocus();
+        if (wasMuted) pause();
+        refreshGuard();
+        Toast.makeText(this, "집중이 끝났어요. 이제 다른 소리를 들을 수 있어요", Toast.LENGTH_SHORT).show();
+        changed();
+    }
+
+    /**
+     * 앱이 꺼졌다 다시 켜져도 남은 시간 동안 집중을 이어 간다.
+     * 휴대폰을 다시 켜지 않았다면 부팅 후 흐른 시간으로 재서, 시계를 앞으로 돌려도 일찍 끝나지 않는다.
+     */
+    private void restoreFocus() {
+        long endWall = store.focusEnd();
+        if (endWall == 0) return;
+        int boot = bootCount();
+        long left = boot != -1 && boot == store.focusBoot()
+                ? store.focusEndElapsed() - SystemClock.elapsedRealtime()
+                : endWall - System.currentTimeMillis();
+        if (left <= 0) {
+            store.clearFocus();
+            return;
+        }
+        focusEnd = SystemClock.elapsedRealtime() + left;
+        focusTotal = Math.max(left, store.focusTotal());
+        focusKeep = store.focusKeep();
+        timerEnd = focusKeep ? 0 : focusEnd;
+        handler.post(tick);
+    }
+
+    private int bootCount() {
+        return Settings.Global.getInt(getContentResolver(), Settings.Global.BOOT_COUNT, -1);
+    }
+
+    /** 집중 중이면 남은 시간을 알려 주고 true. 화면에서 잠긴 단추를 눌렀을 때도 쓴다. */
+    boolean refuseIfLocked() {
+        if (!locked()) return false;
+        long now = SystemClock.elapsedRealtime();
+        if (lastLockToast == 0 || now - lastLockToast > 2500) {
+            lastLockToast = now;
+            long min = (focusRemaining() + 59_999) / 60_000;
+            Toast.makeText(this, "🎯 집중 중이에요 · " + min + "분 남았어요. 끝나면 다른 소리를 들을 수 있어요",
+                    Toast.LENGTH_SHORT).show();
+        }
+        return true;
+    }
+
+    private void muteForUnplug() {
+        if (!playing || focusMuted) return;
+        focusMuted = true;
+        engine.master(0f, 0.3f);
+        Toast.makeText(this, "이어폰이 빠져서 소리를 잠시 껐어요. 다시 연결하면 이어서 들려요", Toast.LENGTH_SHORT).show();
+        changed();
+    }
+
+    private void unmute() {
+        focusMuted = false;
+        if (fading) engine.master(0f, Math.max(1f, timerRemaining() / 1000f));
+        else engine.master(1f, 1.5f);
+        changed();
+    }
+
+    /** 다른 앱 소리를 막아야 하는지: 설정에서 켰거나, 집중 중이면 언제나 */
+    private boolean blocking() {
+        return store.blockOthers() || locked();
+    }
+
     // ---- 다른 앱 소리 막기 ----
 
     /** 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막을지 */
@@ -543,7 +724,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     /** 설정이나 권한이 바뀌었을 때 다시 맞춘다. */
     void refreshGuard() {
-        if (playing && store.blockOthers()) {
+        if (playing && blocking()) {
             guard.stop();
             guard.start();
         } else {
@@ -594,6 +775,11 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
 
     // ---- 오디오 포커스 ----
 
+    /** 전화·영상 통화·벨 울림 중인지 */
+    private boolean inCall() {
+        return audio.getMode() != AudioManager.MODE_NORMAL;
+    }
+
     @SuppressWarnings("deprecation")
     private boolean requestFocus() {
         int r;
@@ -633,6 +819,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
                 }
                 if (resumeOnFocus) {
                     resumeOnFocus = false;
+                    handler.removeCallbacks(regrab);
                     play();
                 }
                 break;
@@ -649,8 +836,11 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
             case AudioManager.AUDIOFOCUS_LOSS:
                 // 다른 앱이 음악·영상을 틀었다. 막기가 켜져 있으면 포커스를 되찾아 그 앱을 멈추게 한다.
                 // (전화·알람·내비게이션은 잠깐 빌려 가는 포커스라 여기로 오지 않는다)
-                if (store.blockOthers() && playing) scheduleRegrab();
-                else pause();
+                if (blocking()) {
+                    if (playing) scheduleRegrab();
+                } else {
+                    pause();
+                }
                 break;
             default:
                 break;
@@ -728,9 +918,15 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     private String statusText() {
         String s = playing ? "재생 중" : "일시정지";
         if (spatialActive()) s += " · 3D";
-        if (playing && store.blockOthers()) s += " · 다른 소리 막는 중";
+        if (locked()) s = (focusMuted ? "🎯 집중 중 · 이어폰이 빠져 소리를 꺼 둠" : "🎯 집중 중")
+                + " · " + ((focusRemaining() + 59_999) / 60_000) + "분 남음" + (spatialActive() ? " · 3D" : "");
+        else if (playing && store.blockOthers()) s += " · 다른 소리 막는 중";
         long left = timerRemaining();
-        if (left > 0) s += " · " + ((left + 59_999) / 60_000) + "분 뒤 꺼짐";
+        if (locked()) {
+            if (!focusKeep) s += " · 끝나면 꺼짐";
+        } else if (left > 0) {
+            s += " · " + ((left + 59_999) / 60_000) + "분 뒤 꺼짐";
+        }
         return s;
     }
 
@@ -744,24 +940,30 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         PendingIntent open = PendingIntent.getActivity(this, 0,
                 new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        boolean locked = locked();
         b.setSmallIcon(R.drawable.ic_stat_moon)
                 .setContentTitle(title())
                 .setContentText(statusText())
                 .setContentIntent(open)
-                .setDeleteIntent(servicePending(ACTION_STOP, 2))
-                .setOngoing(playing)
+                .setOngoing(playing || locked)
                 .setShowWhen(false)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setColor(0xFF8FA8FF)
-                .addAction(new Notification.Action.Builder(
-                        Icon.createWithResource(this, playing ? R.drawable.ic_pause : R.drawable.ic_play),
-                        playing ? "일시정지" : "재생", servicePending(ACTION_TOGGLE, 1)).build())
-                .addAction(new Notification.Action.Builder(
-                        Icon.createWithResource(this, R.drawable.ic_close), "끄기", servicePending(ACTION_STOP, 3)).build())
-                .setStyle(new Notification.MediaStyle()
-                        .setMediaSession(session.getSessionToken())
-                        .setShowActionsInCompactView(0, 1));
-        return b.build();
+                .setColor(0xFF8FA8FF);
+        Notification.MediaStyle style = new Notification.MediaStyle().setMediaSession(session.getSessionToken());
+        if (locked) {
+            // 집중 중에는 알림창·잠금화면에서도 멈추거나 끌 수 없다
+            if (!playing || focusMuted) b.addAction(new Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_play), "재생", servicePending(ACTION_TOGGLE, 1)).build());
+        } else {
+            b.setDeleteIntent(servicePending(ACTION_STOP, 2))
+                    .addAction(new Notification.Action.Builder(
+                            Icon.createWithResource(this, playing ? R.drawable.ic_pause : R.drawable.ic_play),
+                            playing ? "일시정지" : "재생", servicePending(ACTION_TOGGLE, 1)).build())
+                    .addAction(new Notification.Action.Builder(
+                            Icon.createWithResource(this, R.drawable.ic_close), "끄기", servicePending(ACTION_STOP, 3)).build());
+            style.setShowActionsInCompactView(0, 1);
+        }
+        return b.setStyle(style).build();
     }
 
     @SuppressWarnings("deprecation")
@@ -769,10 +971,15 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         return new Notification.Builder(this).setPriority(Notification.PRIORITY_LOW);
     }
 
+    /** 안드로이드 13부터는 알림창의 재생 단추가 이 목록을 따른다: 집중 중에는 멈춤·끄기를 빼 둔다 */
+    long sessionActions() {
+        if (locked()) return playing && !focusMuted ? 0 : PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE;
+        return PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_STOP;
+    }
+
     private void updateSession() {
         session.setPlaybackState(new PlaybackState.Builder()
-                .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
-                        | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_STOP)
+                .setActions(sessionActions())
                 .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
                         PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
                 .build());

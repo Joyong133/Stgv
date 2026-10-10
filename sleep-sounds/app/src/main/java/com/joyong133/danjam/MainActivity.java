@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.joyong133.danjam.Ui.CARD;
@@ -49,7 +50,7 @@ import static com.joyong133.danjam.Ui.SKY;
 import static com.joyong133.danjam.Ui.SUB;
 import static com.joyong133.danjam.Ui.TEXT;
 
-/** 소리 고르기 화면: 분류별 소리 타일, 추천·내 믹스, 위쪽 바로가기(소리 공간·호흡·취침 화면), 아래쪽 재생 막대. */
+/** 소리 고르기 화면: 분류별 소리 타일, 추천·내 믹스, 위쪽 바로가기(소리 공간·집중·호흡·취침 화면), 아래쪽 재생 막대. */
 public final class MainActivity extends Activity implements SoundService.Listener {
     private static final int TAB_MIXES = SoundCatalog.CATEGORIES.length;
     private static final int[] TIMER_MINUTES = {0, 10, 15, 20, 30, 45, 60, 90, 120, 180, 480};
@@ -77,13 +78,15 @@ public final class MainActivity extends Activity implements SoundService.Listene
     private final List<TextView> tabs = new ArrayList<>();
     private final Map<String, Tile> tiles = new HashMap<>();
     private ImageButton playButton, clearButton;
-    private TextView barTitle, barSub, timerButton, spaceButton;
+    private TextView barTitle, barSub, timerButton, spaceButton, focusButton;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
             service = ((SoundService.LocalBinder) binder).service();
             service.addListener(MainActivity.this);
+            // 앱이 꺼져 있던 사이에도 집중 시간은 흘렀다: 남아 있으면 이어서 들려준다
+            if (service.locked() && !service.isPlaying()) service.play();
             onStateChanged();
         }
 
@@ -177,7 +180,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         header.addView(subtitle);
         column.addView(header);
 
-        // 바로가기: 소리 공간(3D·설정), 호흡 안내, 취침 화면
+        // 바로가기: 소리 공간(3D·설정), 집중 소리, 호흡 안내, 취침 화면
         LinearLayout actions = new LinearLayout(this);
         actions.setPadding(dp(14), dp(4), dp(14), dp(8));
         spaceButton = Ui.pill(this, "🎧 소리 공간", new View.OnClickListener() {
@@ -187,6 +190,19 @@ public final class MainActivity extends Activity implements SoundService.Listene
             }
         });
         spaceButton.setContentDescription("소리 공간: 3D 공간 음향과 소리 설정");
+        focusButton = Ui.pill(this, "🎯 집중", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (service == null) return;
+                openDialog = FocusDialog.show(MainActivity.this, service, new Runnable() {
+                    @Override
+                    public void run() {
+                        askNotificationPermission();
+                    }
+                });
+            }
+        });
+        focusButton.setContentDescription("집중 소리: 정한 시간 동안 고른 소리만 듣기");
         TextView breath = Ui.pill(this, "🌬️ 호흡", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -194,18 +210,19 @@ public final class MainActivity extends Activity implements SoundService.Listene
             }
         });
         breath.setContentDescription("호흡 안내");
-        TextView bedside = Ui.pill(this, "🌙 취침 화면", new View.OnClickListener() {
+        TextView bedside = Ui.pill(this, "🌙 취침", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (service != null) openDialog = BedsideDialog.show(MainActivity.this, service);
             }
         });
         bedside.setContentDescription("취침 화면");
-        View[] pills = {spaceButton, breath, bedside};
-        float[] weights = {1.25f, 0.85f, 1f};
+        View[] pills = {spaceButton, focusButton, breath, bedside};
+        float[] weights = {1.3f, 1f, 1f, 1f};
         for (int i = 0; i < pills.length; i++) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weights[i]);
             if (i > 0) lp.leftMargin = dp(6);
+            pills[i].setPadding(dp(6), dp(8), dp(6), dp(8));
             actions.addView(pills[i], lp);
         }
         column.addView(actions);
@@ -273,7 +290,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
             @Override
             public void onClick(View v) {
                 if (service == null) return;
-                if (service.isPlaying()) {
+                if (service.isPlaying() && !service.focusMuted()) {
                     service.pause();
                 } else {
                     askNotificationPermission();
@@ -312,6 +329,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         timerButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (service != null && service.refuseIfLocked()) return;
                 showTimerDialog();
             }
         });
@@ -453,7 +471,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         content.addView(t);
     }
 
-    private static String names(Map<String, Integer> mix) {
+    static String names(Map<String, Integer> mix) {
         StringBuilder sb = new StringBuilder();
         for (String id : mix.keySet()) {
             if (sb.length() > 0) sb.append(" · ");
@@ -462,7 +480,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
         return sb.toString();
     }
 
-    private static LinkedHashMap<String, Integer> presetMix(Presets.Preset p) {
+    static LinkedHashMap<String, Integer> presetMix(Presets.Preset p) {
         LinkedHashMap<String, Integer> mix = new LinkedHashMap<>();
         for (int i = 0; i < p.ids.length; i++) mix.put(p.ids[i], p.volumes[i]);
         return mix;
@@ -582,12 +600,16 @@ public final class MainActivity extends Activity implements SoundService.Listene
         Map<String, Integer> mix = service == null ? new LinkedHashMap<String, Integer>() : service.mix();
         boolean playing = service != null && service.isPlaying();
         boolean space = service != null && service.spatialActive();
+        boolean locked = service != null && service.locked();
+        boolean muted = locked && service.focusMuted();
         updating = true;
         for (Map.Entry<String, Tile> e : tiles.entrySet()) {
             Integer vol = mix.get(e.getKey());
             Tile t = e.getValue();
             boolean on = vol != null;
             t.box.setBackground(on ? activeTile() : rounded(CARD, dp(20)));
+            // 집중 중에는 켜 둔 소리만 또렷하게: 나머지는 끝나야 고를 수 있다
+            t.box.setAlpha(locked && !on ? 0.4f : 1f);
             t.volume.setVisibility(on ? View.VISIBLE : View.INVISIBLE);
             if (on && t.volume.getProgress() != vol) t.volume.setProgress(vol);
         }
@@ -597,6 +619,7 @@ public final class MainActivity extends Activity implements SoundService.Listene
             if (v.getTag() instanceof Map) {
                 boolean same = !mix.isEmpty() && mix.equals(v.getTag());
                 v.setBackground(same ? activeTile() : rounded(CARD, dp(20)));
+                v.setAlpha(locked && !same ? 0.4f : 1f);
             }
         }
 
@@ -606,17 +629,24 @@ public final class MainActivity extends Activity implements SoundService.Listene
         } else {
             barTitle.setText(names(mix));
             boolean guard = playing && service.blockOthers();
-            barSub.setText((playing ? "재생 중" : "일시정지") + (space ? " · 🎧 3D" : "") + (guard ? " · 🔒" : "")
+            if (muted) barSub.setText("🎧 이어폰이 빠져 소리를 꺼 뒀어요");
+            else if (locked) barSub.setText("🎯 집중 중 · 끝나면 다른 소리 가능");
+            else barSub.setText((playing ? "재생 중" : "일시정지") + (space ? " · 🎧 3D" : "") + (guard ? " · 🔒" : "")
                     + " · 눌러서 음량 조절");
         }
         spaceButton.setText(space ? "🎧 3D 켜짐" : "🎧 소리 공간");
         spaceButton.setTextColor(space ? INK : TEXT);
         spaceButton.setBackground(rounded(space ? SKY : CARD, dp(18)));
-        playButton.setImageResource(playing ? R.drawable.ic_pause : R.drawable.ic_play);
-        playButton.setContentDescription(playing ? "일시정지" : "재생");
+        boolean sounding = playing && !muted;
+        playButton.setImageResource(sounding ? (locked ? R.drawable.ic_lock : R.drawable.ic_pause) : R.drawable.ic_play);
+        playButton.setContentDescription(sounding ? (locked ? "집중 중이라 멈출 수 없어요" : "일시정지") : "재생");
         playButton.setEnabled(!mix.isEmpty());
         playButton.setAlpha(mix.isEmpty() ? 0.45f : 1f);
-        clearButton.setVisibility(mix.isEmpty() ? View.GONE : View.VISIBLE);
+        clearButton.setVisibility(mix.isEmpty() || locked ? View.GONE : View.VISIBLE);
+        // 집중 중에는 타이머도 잠기니 감추고, 남은 시간은 위쪽 🎯 단추에 보여 준다
+        timerButton.setVisibility(locked ? View.GONE : View.VISIBLE);
+        focusButton.setTextColor(locked ? INK : TEXT);
+        focusButton.setBackground(rounded(locked ? MOON : CARD, dp(18)));
         refreshTimer();
     }
 
@@ -629,14 +659,16 @@ public final class MainActivity extends Activity implements SoundService.Listene
 
     private void refreshTimer() {
         long left = service == null ? 0 : service.timerRemaining();
-        if (left <= 0) {
-            timerButton.setText("타이머");
-        } else {
-            long s = (left + 999) / 1000;
-            timerButton.setText(s >= 3600
-                    ? String.format("%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
-                    : String.format("%d:%02d", s / 60, s % 60));
-        }
+        timerButton.setText(left <= 0 ? "타이머" : clock(left));
+        long focus = service == null ? 0 : service.focusRemaining();
+        focusButton.setText(focus > 0 ? "🎯 " + clock(focus) : "🎯 집중");
+    }
+
+    private static String clock(long ms) {
+        long s = (ms + 999) / 1000;
+        return s >= 3600
+                ? String.format(Locale.US, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
+                : String.format(Locale.US, "%d:%02d", s / 60, s % 60);
     }
 
     // ---- 대화상자 ----
@@ -708,6 +740,11 @@ public final class MainActivity extends Activity implements SoundService.Listene
             volume.setContentDescription(s.name + " 음량");
             volume.setOnSeekBarChangeListener(volumeListener(id));
             row.addView(volume, new LinearLayout.LayoutParams(0, dp(44), 1f));
+            if (service.locked()) {
+                // 집중 중에는 음량만 바꿀 수 있다
+                list.addView(row);
+                continue;
+            }
             ImageButton remove = new ImageButton(this);
             remove.setBackground(null);
             remove.setImageResource(R.drawable.ic_close);

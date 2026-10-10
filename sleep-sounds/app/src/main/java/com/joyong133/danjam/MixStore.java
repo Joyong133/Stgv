@@ -191,6 +191,56 @@ final class MixStore {
         prefs.edit().putInt("fade_minutes", m).apply();
     }
 
+    // ---- 집중 소리 ----
+
+    /** 진행 중인 집중의 종료 시각 (벽시계 ms). 앱이 꺼졌다 켜져도 이어서 지키려고 저장한다. 0 이면 없음 */
+    /** 집중 소리가 끝나는 벽시계 시각 (0이면 집중 중이 아님) */
+    long focusEnd() {
+        return prefs.getLong("focus_end", 0);
+    }
+
+    /** 같은 부팅 안이라면 시계를 바꿔도 흔들리지 않는 elapsedRealtime 기준 종료 시각 */
+    long focusEndElapsed() {
+        return prefs.getLong("focus_end_elapsed", 0);
+    }
+
+    int focusBoot() {
+        return prefs.getInt("focus_boot", -1);
+    }
+
+    /** 이번 집중의 전체 길이(ms) */
+    long focusTotal() {
+        return prefs.getLong("focus_total", 0);
+    }
+
+    boolean focusKeep() {
+        return prefs.getBoolean("focus_keep", false);
+    }
+
+    /** 앱이 곧바로 꺼져도 남도록 바로 기록한다 */
+    void setFocus(long endWallMs, long endElapsedMs, int boot, long totalMs, boolean keep) {
+        prefs.edit().putLong("focus_end", endWallMs).putLong("focus_end_elapsed", endElapsedMs)
+                .putInt("focus_boot", boot).putLong("focus_total", totalMs).putBoolean("focus_keep", keep).commit();
+    }
+
+    void clearFocus() {
+        prefs.edit().remove("focus_end").remove("focus_end_elapsed").remove("focus_boot")
+                .remove("focus_total").remove("focus_keep").commit();
+    }
+
+    /** 집중 설정 화면에서 마지막으로 고른 시간(분)과 끝난 뒤 계속 들을지 */
+    int focusMinutes() {
+        return prefs.getInt("focus_minutes", 30);
+    }
+
+    boolean focusKeepChoice() {
+        return prefs.getBoolean("focus_keep_choice", false);
+    }
+
+    void setFocusChoice(int minutes, boolean keep) {
+        prefs.edit().putInt("focus_minutes", minutes).putBoolean("focus_keep_choice", keep).apply();
+    }
+
     /** 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막을지 */
     boolean blockOthers() {
         return prefs.getBoolean("block_others", false);

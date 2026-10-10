@@ -78,7 +78,7 @@ final class BedsideDialog implements SoundService.Listener {
         toggle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (service.isPlaying()) service.pause();
+                if (service.isPlaying() && !service.focusMuted()) service.pause();
                 else service.play();
             }
         });
@@ -136,10 +136,14 @@ final class BedsideDialog implements SoundService.Listener {
         if (service.mix().isEmpty()) sb.append("켜 둔 소리가 없어요");
         else sb.append(service.title());
         long left = service.timerRemaining();
-        if (left > 0) sb.append("\n").append((left + 59_999) / 60_000).append("분 뒤에 꺼져요");
+        boolean locked = service.locked();
+        if (locked) sb.append("\n🎯 집중 ").append((service.focusRemaining() + 59_999) / 60_000).append("분 남음");
+        else if (left > 0) sb.append("\n").append((left + 59_999) / 60_000).append("분 뒤에 꺼져요");
         status.setText(sb.toString());
-        toggle.setText(service.isPlaying() ? "❚❚  일시정지" : "▶  재생");
-        toggle.setVisibility(service.mix().isEmpty() ? View.GONE : View.VISIBLE);
+        boolean sounding = service.isPlaying() && !service.focusMuted();
+        toggle.setText(sounding ? "❚❚  일시정지" : "▶  재생");
+        // 집중 중에는 멈출 수 없으니 단추를 숨긴다 (이어폰이 빠졌거나 전화로 멈췄을 때만 '재생')
+        toggle.setVisibility(service.mix().isEmpty() || (locked && sounding) ? View.GONE : View.VISIBLE);
     }
 
     @Override

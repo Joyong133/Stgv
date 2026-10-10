@@ -191,6 +191,15 @@ final class MixStore {
         prefs.edit().putInt("fade_minutes", m).apply();
     }
 
+    /** 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막을지 */
+    boolean blockOthers() {
+        return prefs.getBoolean("block_others", false);
+    }
+
+    void setBlockOthers(boolean on) {
+        prefs.edit().putBoolean("block_others", on).apply();
+    }
+
     /** 사용자가 옮긴 3D 자리. 옮긴 적이 없으면 null. */
     Place place(String id) {
         String v = prefs.getString("place_" + id, null);

@@ -27,6 +27,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.joyong133.danjam.audio.Place;
 import com.joyong133.danjam.audio.SoundCatalog;
@@ -40,7 +41,8 @@ import java.util.Map;
 /**
  * 화면이 꺼져도 소리가 계속 나도록 재생을 맡는 서비스.
  * 지금 켜 둔 소리 조합, 재생/일시정지, 잠들기 타이머, 알림과 잠금화면 컨트롤,
- * 3D 공간 음향(이어폰을 꽂으면 자동으로 켜짐)과 소리 설정, 호흡 안내 소리를 관리한다.
+ * 3D 공간 음향(이어폰을 꽂으면 자동으로 켜짐)과 소리 설정, 호흡 안내 소리,
+ * 재생 중 다른 앱 소리 막기를 관리한다.
  * 모든 메서드는 메인 스레드에서 호출한다.
  */
 public final class SoundService extends Service implements AudioManager.OnAudioFocusChangeListener {
@@ -83,6 +85,20 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     /** 호흡 안내 소리 채널 id (꺼져 있으면 null) */
     private String breathId;
     private AudioDeviceCallback deviceCallback;
+    private MediaGuard guard;
+    /** 최근에 오디오 포커스를 되찾은 시각들 (다른 앱과 끝없이 주고받지 않도록 간격을 늘린다) */
+    private final long[] regrabs = new long[4];
+    private int regrabIndex;
+    private long lastBlockToast;
+    private final Runnable regrab = new Runnable() {
+        @Override
+        public void run() {
+            if (!playing) return;
+            // 포커스를 다시 가져오면, 소리를 내려던 앱은 포커스를 잃고 스스로 멈춘다
+            if (requestFocus()) onBlocked(null);
+            else pause();
+        }
+    };
     /** SystemClock.elapsedRealtime 기준 타이머 종료 시각, 0이면 타이머 없음 */
     private long timerEnd;
     private long lastNotifiedMinute = -1;
@@ -163,6 +179,12 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "danjam:playback");
         wakeLock.setReferenceCounted(false);
+        guard = new MediaGuard(this, handler, new MediaGuard.Listener() {
+            @Override
+            public void onBlocked(String pkg) {
+                SoundService.this.onBlocked(pkg);
+            }
+        });
         updateSession();
     }
 
@@ -192,6 +214,8 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     public void onDestroy() {
         handler.removeCallbacks(tick);
         audio.unregisterAudioDeviceCallback(deviceCallback);
+        handler.removeCallbacks(regrab);
+        guard.stop();
         engine.release();
         session.release();
         if (wakeLock.isHeld()) wakeLock.release();
@@ -291,6 +315,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         if (!wakeLock.isHeld()) wakeLock.acquire(12 * 60 * 60 * 1000L);
         registerNoisy();
         goForeground();
+        if (store.blockOthers()) guard.start();
         handler.removeCallbacks(tick);
         if (timerEnd != 0) handler.post(tick);
         changed();
@@ -307,6 +332,8 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         engine.master(0f, 0.6f);
         if (wakeLock.isHeld()) wakeLock.release();
         unregisterNoisy();
+        handler.removeCallbacks(regrab);
+        guard.stop();
         if (!keepForeground) {
             resumeOnFocus = false;
             abandonFocus();
@@ -496,6 +523,55 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
         for (SoundCatalog.Sound s : SoundCatalog.ALL) engine.place(s.id, null);
     }
 
+    // ---- 다른 앱 소리 막기 ----
+
+    /** 단잠이 재생되는 동안 다른 앱의 음악·영상 소리를 막을지 */
+    boolean blockOthers() {
+        return store.blockOthers();
+    }
+
+    void setBlockOthers(boolean on) {
+        store.setBlockOthers(on);
+        refreshGuard();
+        changed();
+    }
+
+    /** '알림 접근'이 허용되어 있어 더 확실하게 막을 수 있는지 */
+    boolean guardHasAccess() {
+        return MediaGuard.hasAccess(this);
+    }
+
+    /** 설정이나 권한이 바뀌었을 때 다시 맞춘다. */
+    void refreshGuard() {
+        if (playing && store.blockOthers()) {
+            guard.stop();
+            guard.start();
+        } else {
+            guard.stop();
+            handler.removeCallbacks(regrab);
+        }
+    }
+
+    private void scheduleRegrab() {
+        long now = SystemClock.elapsedRealtime();
+        long oldest = regrabs[regrabIndex];
+        regrabs[regrabIndex] = now;
+        regrabIndex = (regrabIndex + 1) % regrabs.length;
+        // 30초 안에 네 번 넘게 빼앗기면 그 앱도 계속 버티는 것이니 조금 천천히 되찾는다
+        long delay = oldest != 0 && now - oldest < 30_000 ? 2000 : 250;
+        handler.removeCallbacks(regrab);
+        handler.postDelayed(regrab, delay);
+    }
+
+    private void onBlocked(String pkg) {
+        Log.i(TAG, "다른 앱 소리를 막음: " + (pkg == null ? "(오디오 포커스)" : pkg));
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastBlockToast > 5000) {
+            lastBlockToast = now;
+            Toast.makeText(this, "단잠이 재생 중이라 다른 앱의 소리를 멈췄어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     // ---- 호흡 안내 ----
 
     /** 호흡 안내 소리를 켠다. spec: 들이쉬기,멈추기,내쉬기,멈추기 (초) */
@@ -571,7 +647,10 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
                 if (playing && !fading) engine.master(DUCK, 0.3f);
                 break;
             case AudioManager.AUDIOFOCUS_LOSS:
-                pause();
+                // 다른 앱이 음악·영상을 틀었다. 막기가 켜져 있으면 포커스를 되찾아 그 앱을 멈추게 한다.
+                // (전화·알람·내비게이션은 잠깐 빌려 가는 포커스라 여기로 오지 않는다)
+                if (store.blockOthers() && playing) scheduleRegrab();
+                else pause();
                 break;
             default:
                 break;
@@ -649,6 +728,7 @@ public final class SoundService extends Service implements AudioManager.OnAudioF
     private String statusText() {
         String s = playing ? "재생 중" : "일시정지";
         if (spatialActive()) s += " · 3D";
+        if (playing && store.blockOthers()) s += " · 다른 소리 막는 중";
         long left = timerRemaining();
         if (left > 0) s += " · " + ((left + 59_999) / 60_000) + "분 뒤 꺼짐";
         return s;

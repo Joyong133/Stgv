@@ -2,7 +2,14 @@ package com.joyong133.danjam;
 
 import android.app.Dialog;
 import android.content.Context;
+import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+import android.view.ViewTreeObserver;
 import android.content.res.ColorStateList;
 import android.view.Gravity;
 import android.view.View;
@@ -20,7 +27,8 @@ import java.util.List;
 
 /**
  * '소리 공간' 화면: 3D 소리 배치판과 소리 설정을 한곳에 모았다.
- * 3D 공간 음향(자동·켜기·끄기), 움직임, 공간감, 전체 음량, 톤, 자연스러운 변화, 타이머 페이드 길이.
+ * 3D 공간 음향(자동·켜기·끄기), 움직임, 공간감, 전체 음량, 톤, 자연스러운 변화, 타이머 페이드 길이,
+ * 재생 중 다른 앱 소리 막기.
  */
 final class SpaceDialog implements SoundService.Listener {
     private static final int[] FADES = {1, 5, 15, 30};
@@ -31,6 +39,9 @@ final class SpaceDialog implements SoundService.Listener {
     private final SoundStageView stage;
     private final TextView status, empty;
     private final Ui.Segmented mode;
+    private final Switch block;
+    private final LinearLayout accessBox;
+    private final TextView accessText, accessButton;
 
     static Dialog show(Context c, SoundService service) {
         Dialog d = new SpaceDialog(c, service).dialog;
@@ -44,7 +55,7 @@ final class SpaceDialog implements SoundService.Listener {
         LinearLayout root = new LinearLayout(c);
         root.setOrientation(LinearLayout.VERTICAL);
         dialog = Ui.fullScreen(c, root, null);
-        root.addView(Ui.titleBar(c, "🎧 소리 공간", new View.OnClickListener() {
+        root.addView(Ui.titleBar(c, "🎧 소리 공간 · 설정", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 dialog.dismiss();
@@ -160,6 +171,79 @@ final class SpaceDialog implements SoundService.Listener {
             }
         }).view);
 
+        // ---- 다른 앱 소리 막기 ----
+        LinearLayout blockRow = new LinearLayout(c);
+        blockRow.setGravity(Gravity.CENTER_VERTICAL);
+        blockRow.setPadding(0, Ui.dp(c, 22), 0, 0);
+        LinearLayout blockLabels = new LinearLayout(c);
+        blockLabels.setOrientation(LinearLayout.VERTICAL);
+        blockLabels.addView(Ui.text(c, "🔒 다른 앱 소리 막기", 15, Ui.TEXT, true));
+        TextView bh = Ui.text(c, "단잠이 재생되는 동안 유튜브·음악 앱·브라우저 영상이 소리를 내면 바로 멈춰요. "
+                + "전화·알람·내비게이션 안내는 막지 않아요. 단잠을 멈추면 다시 자유롭게 틀 수 있어요.", 12, Ui.SUB, false);
+        bh.setPadding(0, Ui.dp(c, 2), Ui.dp(c, 8), 0);
+        blockLabels.addView(bh);
+        blockRow.addView(blockLabels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        block = new Switch(c);
+        block.setChecked(s.blockOthers());
+        block.setThumbTintList(ColorStateList.valueOf(Ui.MOON));
+        block.setTrackTintList(ColorStateList.valueOf(0x66F6D98B));
+        block.setContentDescription("다른 앱 소리 막기");
+        block.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
+                service.setBlockOthers(on);
+                refreshAccess();
+            }
+        });
+        blockRow.addView(block);
+        body.addView(blockRow);
+
+        accessBox = new LinearLayout(c);
+        accessBox.setOrientation(LinearLayout.VERTICAL);
+        accessBox.setPadding(Ui.dp(c, 14), Ui.dp(c, 12), Ui.dp(c, 14), Ui.dp(c, 12));
+        accessBox.setBackground(Ui.rounded(Ui.CARD, Ui.dp(c, 14)));
+        accessText = Ui.text(c, "", 13, Ui.TEXT, false);
+        accessBox.addView(accessText);
+        accessButton = Ui.pill(c, "알림 접근 허용하러 가기", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openAccessSettings();
+            }
+        });
+        accessButton.setBackground(Ui.rounded(Ui.MOON, Ui.dp(c, 18)));
+        accessButton.setTextColor(Ui.INK);
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ap.topMargin = Ui.dp(c, 10);
+        accessBox.addView(accessButton, ap);
+        TextView restricted = Ui.text(c, "허용 버튼이 회색으로 막혀 있으면: 아래 '앱 정보 열기' → 오른쪽 위 ⋮ → "
+                + "'제한된 설정 허용'을 누른 뒤 다시 허용해 주세요. (APK 로 설치한 앱에 안드로이드가 거는 안전장치예요)", 12, Ui.SUB, false);
+        restricted.setPadding(0, Ui.dp(c, 10), 0, 0);
+        accessBox.addView(restricted);
+        TextView appInfo = Ui.pill(c, "앱 정보 열기", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                open(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + c.getPackageName())));
+            }
+        });
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ip.topMargin = Ui.dp(c, 8);
+        accessBox.addView(appInfo, ip);
+        LinearLayout.LayoutParams bp2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        bp2.topMargin = Ui.dp(c, 10);
+        body.addView(accessBox, bp2);
+
+        // 설정 앱에서 권한을 바꾸고 돌아오면 상태를 다시 확인한다
+        dialog.getWindow().getDecorView().getViewTreeObserver().addOnWindowFocusChangeListener(
+                new ViewTreeObserver.OnWindowFocusChangeListener() {
+                    @Override
+                    public void onWindowFocusChanged(boolean hasFocus) {
+                        if (hasFocus) {
+                            service.refreshGuard();
+                            refreshAccess();
+                        }
+                    }
+                });
+
         TextView reset = Ui.pill(c, "소리 자리 모두 되돌리기", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -181,6 +265,40 @@ final class SpaceDialog implements SoundService.Listener {
         });
         refreshStage();
         refreshStatus();
+        refreshAccess();
+    }
+
+    /** 다른 앱 소리 막기: 알림 접근이 있으면 더 확실하게 막는다는 안내와 권한 상태 */
+    private void refreshAccess() {
+        boolean on = service.blockOthers();
+        accessBox.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) return;
+        boolean granted = service.guardHasAccess();
+        accessText.setText(granted
+                ? "✓ 알림 접근이 허용되어 있어요. 소리를 계속 내려는 앱도 바로 일시정지시켜요. (알림 내용은 읽지 않아요)"
+                : "지금은 기본 방식으로 막고 있어요: 대부분의 음악·영상 앱은 멈추지만 일부 앱은 계속 소리를 낼 수 있어요.\n"
+                + "'알림 접근'을 허용하면 다른 앱의 재생 버튼을 단잠이 직접 눌러 더 확실하게 막아요. 알림 내용은 읽지 않아요.");
+        accessButton.setVisibility(granted ? View.GONE : View.VISIBLE);
+    }
+
+    private void openAccessSettings() {
+        Intent i;
+        if (Build.VERSION.SDK_INT >= 30) {
+            i = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS);
+            i.putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                    new ComponentName(c, MediaGuardListener.class).flattenToString());
+            if (open(i)) return;
+        }
+        open(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+    }
+
+    private boolean open(Intent i) {
+        try {
+            c.startActivity(i);
+            return true;
+        } catch (ActivityNotFoundException e) {
+            return false;
+        }
     }
 
     private void refreshStage() {

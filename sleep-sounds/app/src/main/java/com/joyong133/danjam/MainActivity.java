@@ -605,7 +605,9 @@ public final class MainActivity extends Activity implements SoundService.Listene
             barSub.setText("여러 소리를 함께 켜면 섞여서 들려요");
         } else {
             barTitle.setText(names(mix));
-            barSub.setText((playing ? "재생 중" : "일시정지") + (space ? " · 🎧 3D" : "") + " · 눌러서 음량 조절");
+            boolean guard = playing && service.blockOthers();
+            barSub.setText((playing ? "재생 중" : "일시정지") + (space ? " · 🎧 3D" : "") + (guard ? " · 🔒" : "")
+                    + " · 눌러서 음량 조절");
         }
         spaceButton.setText(space ? "🎧 3D 켜짐" : "🎧 소리 공간");
         spaceButton.setTextColor(space ? INK : TEXT);

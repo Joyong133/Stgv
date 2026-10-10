@@ -3,4 +3,5 @@
     <string name="app_name">단잠</string>
     <string name="channel_name">재생 중인 소리</string>
     <string name="channel_description">잠금화면과 알림창에서 소리를 멈추거나 다시 틀 수 있어요</string>
+    <string name="guard_label">단잠 · 다른 앱 소리 막기</string>
 </resources>

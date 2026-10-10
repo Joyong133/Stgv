@@ -27,5 +27,17 @@
             android:name=".SoundService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- '다른 앱 소리 막기'를 더 확실하게: 사용자가 알림 접근을 허용하면 다른 앱의 재생을 멈출 수 있다.
+             알림 내용은 읽지 않는다. -->
+        <service
+            android:name=".MediaGuardListener"
+            android:exported="true"
+            android:label="@string/guard_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

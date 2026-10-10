@@ -1,0 +1,9 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+captures/
+# 빌드 시 저장소 루트에서 자동 동기화되는 사본(원본은 저장소 루트)
+app/src/main/assets/www/

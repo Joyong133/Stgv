@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.maple.adventure'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.maple.adventure'
+        minSdk 21
+        targetSdk 34
+        versionCode 3
+        versionName '3.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// 저장소 루트의 웹 소스(index.html, css/, js/)를 APK의 assets/www 로 복사한다.
+// 유일한 원본은 저장소 루트이고, assets/www 는 빌드할 때마다 새로 동기화되는 사본이다.
+tasks.register('syncWeb', Copy) {
+    def webRoot = rootProject.projectDir.parentFile   // .../Stgv (android/ 의 상위 = 저장소 루트)
+    from(webRoot) {
+        include 'index.html'
+        include 'css/**'
+        include 'js/**'
+    }
+    into layout.projectDirectory.dir('src/main/assets/www')
+}
+tasks.named('preBuild') { dependsOn 'syncWeb' }

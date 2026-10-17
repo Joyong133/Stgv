@@ -27,6 +27,7 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class MainActivity extends Activity {
     private static final int MAX_COUNT = 200;
@@ -36,6 +37,7 @@ public class MainActivity extends Activity {
     private EditText countInput;
     private CheckBox translateBox;
     private CheckBox strictBox;
+    private CheckBox randomBox;
     private EditText apiKeyInput;
     private Button searchButton;
     private TextView statusText;
@@ -56,6 +58,7 @@ public class MainActivity extends Activity {
         countInput = findViewById(R.id.count);
         translateBox = findViewById(R.id.opt_translate);
         strictBox = findViewById(R.id.opt_strict);
+        randomBox = findViewById(R.id.opt_random);
         apiKeyInput = findViewById(R.id.api_key);
         searchButton = findViewById(R.id.search);
         statusText = findViewById(R.id.status);
@@ -157,8 +160,13 @@ public class MainActivity extends Activity {
         opt.count = count;
         opt.translate = translateBox.isChecked();
         opt.strict = strictBox.isChecked();
+        opt.random = randomBox.isChecked();
 
-        final YouTubeSearcher searcher = new YouTubeSearcher(opt.language, apiKeyInput.getText().toString());
+        YouTubeSearcher.Order[] orders = YouTubeSearcher.Order.values();
+        final YouTubeSearcher.Order order = opt.random
+                ? orders[new Random().nextInt(orders.length)] : YouTubeSearcher.Order.RELEVANCE;
+        final boolean random = opt.random;
+        final YouTubeSearcher searcher = new YouTubeSearcher(opt.language, apiKeyInput.getText().toString(), order);
         LinkFinder.Source source = new LinkFinder.Source() {
             @Override
             public YouTubeSearcher.Page search(String query, String continuation) throws IOException {
@@ -172,21 +180,25 @@ public class MainActivity extends Activity {
                 main.post(new Runnable() {
                     @Override
                     public void run() {
-                        analysis = text + (searcher.usesApiKey() ? "\n(YouTube Data API 사용)" : "");
+                        analysis = text
+                                + (random ? "\n랜덤 모드 · 이번 정렬: " + order.label : "")
+                                + (searcher.usesApiKey() ? "\n(YouTube Data API 사용)" : "");
                         statusText.setText(analysis + "\n검색 중…");
                     }
                 });
             }
 
             @Override
-            public void onProgress(final List<VideoItem> found, final int checked, final int rejected, final int pages) {
+            public void onProgress(final List<VideoItem> shown, final int collected, final int goal,
+                                   final int checked, final int rejected) {
                 main.post(new Runnable() {
                     @Override
                     public void run() {
                         if (running == null) return;
-                        adapter.setItems(found);
-                        actions.setVisibility(found.isEmpty() ? View.GONE : View.VISIBLE);
-                        statusText.setText(analysis + "\n검색 중… " + found.size() + "/" + target
+                        adapter.setItems(shown);
+                        actions.setVisibility(shown.isEmpty() ? View.GONE : View.VISIBLE);
+                        statusText.setText(analysis
+                                + (random ? "\n랜덤으로 고를 후보 모으는 중… " : "\n검색 중… ") + collected + "/" + goal
                                 + " (확인 " + checked + "개, 언어 불일치 제외 " + rejected + "개)");
                     }
                 });
@@ -286,6 +298,7 @@ public class MainActivity extends Activity {
         countInput.setText(String.valueOf(p.getInt("count", 10)));
         translateBox.setChecked(p.getBoolean("translate", true));
         strictBox.setChecked(p.getBoolean("strict", true));
+        randomBox.setChecked(p.getBoolean("random", true));
         String key = p.getString("api_key", "");
         apiKeyInput.setText(key);
         if (!key.isEmpty()) apiKeyInput.setVisibility(View.VISIBLE);
@@ -303,6 +316,7 @@ public class MainActivity extends Activity {
                 .putInt("count", count)
                 .putBoolean("translate", translateBox.isChecked())
                 .putBoolean("strict", strictBox.isChecked())
+                .putBoolean("random", randomBox.isChecked())
                 .putString("api_key", apiKeyInput.getText().toString().trim())
                 .apply();
     }

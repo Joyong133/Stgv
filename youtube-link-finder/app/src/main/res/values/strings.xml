@@ -5,6 +5,7 @@
     <string name="language_label">언어</string>
     <string name="count_label">개수</string>
     <string name="opt_translate">키워드를 선택한 언어로 번역해서 검색</string>
+    <string name="opt_random">랜덤으로 찾기 (매번 다른 링크)</string>
     <string name="opt_strict">제목이 선택한 언어인 영상만 고르기</string>
     <string name="advanced">고급 설정 (선택)</string>
     <string name="api_key_hint">YouTube Data API 키 (없어도 됨)</string>

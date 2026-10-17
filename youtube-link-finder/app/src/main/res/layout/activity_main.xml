@@ -64,6 +64,13 @@
             android:text="@string/opt_translate" />
 
         <CheckBox
+            android:id="@+id/opt_random"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/opt_random" />
+
+        <CheckBox
             android:id="@+id/opt_strict"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

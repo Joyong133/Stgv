@@ -2,8 +2,10 @@ package com.joyong.ytfinder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -13,6 +15,7 @@ import java.util.concurrent.Future;
 
 /**
  * 키워드 분석 → (번역) → 유튜브 검색 → 언어 검사를 거쳐 요청한 개수만큼 링크를 모은다.
+ * 랜덤 모드에서는 요청 개수보다 많은 후보를 모은 뒤 섞어서 고른다.
  * 백그라운드 스레드에서 run()을 호출한다.
  */
 class LinkFinder {
@@ -23,7 +26,8 @@ class LinkFinder {
     interface Listener {
         void onAnalysis(String text);
 
-        void onProgress(List<VideoItem> found, int checked, int rejected, int pages);
+        /** shown은 지금 보여줄 목록(랜덤 모드에서는 다 모을 때까지 비어 있음), collected/goal은 모은 개수/목표. */
+        void onProgress(List<VideoItem> shown, int collected, int goal, int checked, int rejected);
     }
 
     static final class Options {
@@ -32,15 +36,27 @@ class LinkFinder {
         int count;
         boolean translate;
         boolean strict;
+        boolean random;
+    }
+
+    /** 랜덤 모드에서 모을 후보 수: 요청의 3배, 단 요청보다 최소 20개·최대 100개 더. */
+    static int poolSize(int count) {
+        return Math.max(count + 20, Math.min(count * 3, count + 100));
     }
 
     private final Options opt;
     private final Source source;
     private final Translator translator;
     private final Listener listener;
+    private final Random rng;
     private volatile boolean cancelled;
 
     LinkFinder(Options opt, Source source, Translator translator, Listener listener) {
+        this(opt, source, translator, listener, new Random());
+    }
+
+    LinkFinder(Options opt, Source source, Translator translator, Listener listener, Random rng) {
+        this.rng = rng;
         this.opt = opt;
         this.source = source;
         this.translator = translator;
@@ -93,11 +109,12 @@ class LinkFinder {
         List<VideoItem> found = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         int checked = 0, rejected = 0, pages = 0;
-        int maxPages = Math.min(40, opt.count / 4 + 6);
+        int goal = opt.random ? poolSize(opt.count) : opt.count;
+        int maxPages = Math.min(40, goal / 4 + 6);
         String continuation = null;
         ExecutorService pool = Executors.newFixedThreadPool(6);
         try {
-            while (!cancelled && found.size() < opt.count && pages < maxPages) {
+            while (!cancelled && found.size() < goal && pages < maxPages) {
                 YouTubeSearcher.Page page;
                 try {
                     page = source.search(query, continuation);
@@ -111,17 +128,22 @@ class LinkFinder {
                     if (seen.add(v.id)) fresh.add(v);
                 }
                 boolean[] ok = checkLanguages(fresh, pool);
-                for (int i = 0; i < fresh.size() && found.size() < opt.count; i++) {
+                for (int i = 0; i < fresh.size() && found.size() < goal; i++) {
                     checked++;
                     if (ok[i]) found.add(fresh.get(i));
                     else rejected++;
                 }
-                listener.onProgress(new ArrayList<>(found), checked, rejected, pages);
+                List<VideoItem> shown = opt.random ? new ArrayList<VideoItem>() : new ArrayList<>(found);
+                listener.onProgress(shown, found.size(), goal, checked, rejected);
                 if (page.next == null || page.next.equals(continuation)) break;
                 continuation = page.next;
             }
         } finally {
             pool.shutdownNow();
+        }
+        if (opt.random) {
+            Collections.shuffle(found, rng);
+            if (found.size() > opt.count) found = new ArrayList<>(found.subList(0, opt.count));
         }
         return found;
     }

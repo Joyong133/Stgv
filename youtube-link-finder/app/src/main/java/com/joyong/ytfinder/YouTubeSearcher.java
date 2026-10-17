@@ -30,18 +30,36 @@ class YouTubeSearcher {
         }
     }
 
+    /** 검색 정렬. filter는 유튜브 검색 필터(동영상만 + 정렬), apiOrder는 Data API의 order 값. */
+    enum Order {
+        RELEVANCE("관련성순", "EgIQAQ%3D%3D", "relevance"),
+        DATE("업로드 날짜순", "CAISAhAB", "date"),
+        VIEWS("조회수순", "CAMSAhAB", "viewCount"),
+        RATING("평점순", "CAESAhAB", "rating");
+
+        final String label;
+        final String filter;
+        final String apiOrder;
+
+        Order(String label, String filter, String apiOrder) {
+            this.label = label;
+            this.filter = filter;
+            this.apiOrder = apiOrder;
+        }
+    }
+
     private static final String DEFAULT_CLIENT_VERSION = "2.20260901.00.00";
-    /** 검색 필터: 동영상만. */
-    private static final String VIDEO_FILTER = "EgIQAQ%3D%3D";
     private static final Pattern CLIENT_VERSION =
             Pattern.compile("\"INNERTUBE_CLIENT_VERSION\"\\s*:\\s*\"([0-9.]+)\"");
 
     private final Language lang;
     private final String apiKey;
+    private final Order order;
     private String clientVersion = DEFAULT_CLIENT_VERSION;
 
-    YouTubeSearcher(Language lang, String apiKey) {
+    YouTubeSearcher(Language lang, String apiKey, Order order) {
         this.lang = lang;
+        this.order = order;
         this.apiKey = apiKey == null || apiKey.trim().isEmpty() ? null : apiKey.trim();
     }
 
@@ -66,7 +84,7 @@ class YouTubeSearcher {
 
     private Page searchWebPage(String query) throws IOException, JSONException {
         String url = "https://www.youtube.com/results?search_query=" + URLEncoder.encode(query, "UTF-8")
-                + "&sp=" + URLEncoder.encode(VIDEO_FILTER, "UTF-8")
+                + "&sp=" + URLEncoder.encode(order.filter, "UTF-8")
                 + "&hl=" + lang.hl() + "&gl=" + lang.region;
         String html = Http.get(url, browserHeaders());
         Matcher m = CLIENT_VERSION.matcher(html);
@@ -103,7 +121,7 @@ class YouTubeSearcher {
             if (continuation != null) {
                 body.put("continuation", continuation);
             } else {
-                body.put("query", query).put("params", VIDEO_FILTER);
+                body.put("query", query).put("params", order.filter);
             }
             Map<String, String> h = browserHeaders();
             h.put("Content-Type", "application/json");
@@ -187,6 +205,7 @@ class YouTubeSearcher {
                 .append("&q=").append(URLEncoder.encode(query, "UTF-8"))
                 .append("&relevanceLanguage=").append(relevanceLanguage())
                 .append("&regionCode=").append(lang.region)
+                .append("&order=").append(order.apiOrder)
                 .append("&key=").append(URLEncoder.encode(apiKey, "UTF-8"));
         if (pageToken != null) url.append("&pageToken=").append(URLEncoder.encode(pageToken, "UTF-8"));
         String res;

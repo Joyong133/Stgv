@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>코프룰루 전선</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="view" aria-label="전장 화면"></canvas>
+    <header id="top">
+      <div class="res" title="광물"><i class="gem min"></i><b id="rMin">50</b></div>
+      <div class="res" title="베스핀 가스"><i class="gem gas"></i><b id="rGas">0</b></div>
+      <div class="res" title="보급품 (사용 / 한도)"><i class="gem sup"></i><b id="rSup">4/10</b></div>
+      <div id="clock" title="경과 시간">0:00</div>
+      <div class="sp"></div>
+      <button id="bArmy" class="tb" type="button" title="전투 유닛 모두 선택 (F2)">전체 병력</button>
+      <button id="bSound" class="tb" type="button" aria-pressed="true" title="소리 켜기/끄기 (Alt+M)">소리 켬</button>
+      <button id="bMenu" class="tb" type="button" title="일시 정지 (Esc)">메뉴</button>
+    </header>
+    <div id="msgs" aria-live="polite"></div>
+    <div id="hint" hidden></div>
+  </div>
+  <footer id="console">
+    <div id="mmWrap"><canvas id="minimap" aria-label="미니맵: 누르면 그곳으로 화면을 옮깁니다"></canvas></div>
+    <div id="sel"></div>
+    <div id="card" aria-label="명령"></div>
+    <div id="tip" role="tooltip" hidden></div>
+  </footer>
+
+  <div id="overlay">
+    <section id="scrTitle" class="scr panel">
+      <p class="eyebrow">마 사라 외곽 정착지 · 저그 침공 37일째</p>
+      <h1>코프룰루 전선</h1>
+      <p class="lede">테란 사령관이 되어 기지를 세우고, 몰려오는 저그 군단을 막아낸 뒤 둥지를 모두 불태우세요.</p>
+      <div class="opt">
+        <span class="lab" id="labDiff">난이도</span>
+        <div class="seg" data-name="diff" role="radiogroup" aria-labelledby="labDiff">
+          <button type="button" role="radio" data-v="easy">쉬움</button>
+          <button type="button" role="radio" data-v="normal">보통</button>
+          <button type="button" role="radio" data-v="hard">어려움</button>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lab" id="labSpeed">게임 속도</span>
+        <div class="seg" data-name="speed" role="radiogroup" aria-labelledby="labSpeed">
+          <button type="button" role="radio" data-v="normal">보통</button>
+          <button type="button" role="radio" data-v="fast">빠름</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="bStart" class="primary" type="button">출격</button>
+        <button id="bHelp1" type="button">조작법</button>
+      </div>
+      <p class="fine">비공식 팬 게임입니다. 블리자드 엔터테인먼트 및 스타크래프트와 관련이 없으며, 원작의 이미지·음원은 쓰지 않았습니다. 그림과 소리는 모두 코드로 만들었습니다.</p>
+    </section>
+
+    <section id="scrPause" class="scr panel" hidden>
+      <p class="eyebrow">작전 일시 정지</p>
+      <h2>일시 정지</h2>
+      <p id="pauseInfo" class="lede"></p>
+      <div class="actions col">
+        <button id="bResume" class="primary" type="button">계속하기</button>
+        <button id="bHelp2" type="button">조작법</button>
+        <button id="bSound2" type="button">소리 끄기</button>
+        <button id="bRestart" type="button">처음부터 다시</button>
+        <button id="bQuit" type="button">항복하고 타이틀로</button>
+      </div>
+    </section>
+
+    <section id="scrEnd" class="scr panel" hidden>
+      <p class="eyebrow" id="endEyebrow">작전 결과</p>
+      <h2 id="endTitle">승리</h2>
+      <p id="endText" class="lede"></p>
+      <dl id="endStats"></dl>
+      <div class="actions">
+        <button id="bAgain" class="primary" type="button">다시 하기</button>
+        <button id="bToTitle" type="button">타이틀로</button>
+      </div>
+    </section>
+
+    <section id="scrHelp" class="scr panel wide" hidden>
+      <p class="eyebrow">사령관 교범</p>
+      <h2>조작법</h2>
+      <div class="helpgrid">
+        <div>
+          <h3>마우스 · 키보드</h3>
+          <dl class="keys">
+            <div><dt>선택</dt><dd>왼쪽 클릭 · 끌어서 상자 · <kbd>Shift</kbd>+클릭 추가 · 더블클릭 같은 종류</dd></div>
+            <div><dt>명령</dt><dd>오른쪽 클릭: 이동 · 공격 · 채취 · 수리 · 벙커 탑승</dd></div>
+            <div><dt>공격 이동</dt><dd><kbd>A</kbd> 누른 뒤 땅 클릭</dd></div>
+            <div><dt>단축키</dt><dd>명령 버튼 오른쪽 위의 글자</dd></div>
+            <div><dt>부대</dt><dd><kbd>Ctrl</kbd> 또는 <kbd>Alt</kbd>+숫자 지정 · 숫자로 선택 · 두 번 누르면 화면 이동</dd></div>
+            <div><dt>화면</dt><dd>방향키 · 화면 가장자리 · 미니맵 · 휠 확대 · 가운데 버튼 끌기</dd></div>
+            <div><dt>기타</dt><dd><kbd>F2</kbd> 전체 병력 · <kbd>Space</kbd> 마지막 경보 위치 · <kbd>Esc</kbd> 메뉴 · <kbd>Alt</kbd>+<kbd>M</kbd> 소리</dd></div>
+          </dl>
+        </div>
+        <div>
+          <h3>터치</h3>
+          <dl class="keys">
+            <div><dt>선택</dt><dd>누르기 · 한 손가락으로 끌어 상자 · 두 번 누르면 같은 종류</dd></div>
+            <div><dt>명령</dt><dd>유닛을 고른 뒤 땅이나 적을 누르기</dd></div>
+            <div><dt>건설</dt><dd>SCV → 건설 → 건물 고르기 → 원하는 곳으로 끌고 손 떼기</dd></div>
+            <div><dt>화면</dt><dd>두 손가락으로 끌기 · 벌려서 확대 · 미니맵 누르기</dd></div>
+            <div><dt>설명 보기</dt><dd>명령 버튼을 길게 누르기</dd></div>
+          </dl>
+        </div>
+      </div>
+      <h3>작전 요령</h3>
+      <ul class="tips">
+        <li>SCV는 저절로 광물을 캡니다. 커맨드 센터에서 SCV를 쉬지 말고 뽑으세요.</li>
+        <li>보급품이 모자라면 서플라이 디폿을 짓고, 배럭에서 마린을 모으세요.</li>
+        <li>첫 저그 공격은 보통 난이도에서 5분쯤 옵니다. 본진 경사로 앞에 벙커를 지어 두면 든든합니다.</li>
+        <li>파이어뱃은 저글링에, 시즈 모드 탱크는 히드라리스크·울트라리스크에 강합니다. 메딕은 보병을 치료합니다.</li>
+        <li>크게 부서진 테란 건물은 불타며 무너집니다. SCV로 수리하세요.</li>
+        <li>저그 건물을 모두 부수면 승리합니다.</li>
+      </ul>
+      <div class="actions"><button id="bHelpBack" class="primary" type="button">돌아가기</button></div>
+    </section>
+  </div>
+</div>
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/map.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/art.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

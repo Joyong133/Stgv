@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">유튜브 링크 찾기</string>
+    <string name="keyword_hint">검색 키워드 (예: 고양이 브이로그)</string>
+    <string name="language_label">언어</string>
+    <string name="count_label">개수</string>
+    <string name="opt_translate">키워드를 선택한 언어로 번역해서 검색</string>
+    <string name="opt_strict">제목이 선택한 언어인 영상만 고르기</string>
+    <string name="advanced">고급 설정 (선택)</string>
+    <string name="api_key_hint">YouTube Data API 키 (없어도 됨)</string>
+    <string name="search">링크 찾기</string>
+    <string name="stop">중지</string>
+    <string name="copy_all">링크 전체 복사</string>
+    <string name="share">공유</string>
+    <string name="tip">항목을 누르면 유튜브에서 열리고, 길게 누르면 링크가 복사됩니다.</string>
+</resources>

@@ -1,0 +1,47 @@
+name: Build Volume Lock APK
+
+on:
+  push:
+    paths:
+      - 'volume-lock/**'
+      - '.github/workflows/volume-lock-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Build APK
+        working-directory: volume-lock
+        run: |
+          gradle assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk ../VolumeLock.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VolumeLock-apk
+          path: VolumeLock.apk
+
+      - name: Publish to release "volume-lock"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete volume-lock --yes --cleanup-tag || true
+          gh release create volume-lock VolumeLock.apk \
+            --title "볼륨 잠금 APK" \
+            --notes "소리 줄이기를 막아주는 앱. VolumeLock.apk를 내려받아 설치하세요." \
+            --target "${GITHUB_SHA}"

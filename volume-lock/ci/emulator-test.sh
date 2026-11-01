@@ -15,7 +15,7 @@ START=$(mvol); echo "start: $(vol) => $START"; [ -n "$START" ] || { echo "cannot
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 adb shell uiautomator dump /sdcard/ui.xml >/dev/null
-B=$(adb shell cat /sdcard/ui.xml | grep -o 'text="볼륨 잠금 켜기"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' ')
+B=$(adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*볼륨 잠금 시작"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"' | grep -o '[0-9]*' | tr '\n' ' ')
 echo "switch bounds: $B"
 set -- $B
 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 ))
@@ -28,7 +28,7 @@ FAIL=0
 # 1) 되돌리기 (접근성 없이 버튼으로 줄임 → 다시 돌아와야 함)
 adb shell input keyevent KEYCODE_VOLUME_DOWN; adb shell input keyevent KEYCODE_VOLUME_DOWN
 sleep 1
-v=$(mvol); echo "restore test: start $START -> now $v"; [ "$v" = "$START" ] || FAIL=1
+v=$(mvol); R1="restore test: start $START -> now $v"; echo "$R1"; [ "$v" = "$START" ] || FAIL=1
 
 # 2) 버튼 막기 (접근성 켬 → 줄어들지 않아야 함)
 adb shell settings put secure enabled_accessibility_services $PKG/$PKG.VolumeKeyBlocker
@@ -37,13 +37,16 @@ sleep 5
 echo "---- dumpsys accessibility ----"
 adb shell dumpsys accessibility | grep -i -E "volumelock|Bound services|Enabled services|installed|crashed" | head -20
 for i in 1 2 3; do adb shell input keyevent KEYCODE_VOLUME_DOWN; done
-v=$(mvol); echo "key test (no wait): start $START -> now $v"; [ "$v" = "$START" ] || FAIL=1
+v=$(mvol); R2="key test (no wait): start $START -> now $v"; echo "$R2"; [ "$v" = "$START" ] || FAIL=1
 
-adb shell am start -n $PKG/.MainActivity; sleep 2
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell am start -n $PKG/.MainActivity; sleep 3
 adb exec-out screencap -p > screen.png
 adb shell uiautomator dump /sdcard/ui.xml >/dev/null
 adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*진단[^"]*"'
 echo "---- app log ----"
 adb logcat -d | grep -i -E "VolumeLock|FATAL|E AndroidRuntime|Accessibility.*(volumelock|bind|error)" | tail -40
+echo "===== SUMMARY ====="; echo "$R1"; echo "$R2"
+adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*진단[^"]*"'
 echo "RESULT FAIL=$FAIL"
 exit $FAIL

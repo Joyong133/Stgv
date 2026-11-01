@@ -18,12 +18,13 @@ import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
-import android.widget.Switch;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private AudioManager audio;
-    private Switch master;
+    private Button master;
     private Button dndButton;
     private Button a11yButton;
     private TextView status;
@@ -78,24 +79,12 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(20), dp(20), dp(20));
 
-        master = new Switch(this);
-        master.setText("볼륨 잠금 켜기");
-        master.setTextSize(22);
-        master.setPadding(0, dp(8), 0, dp(8));
-        master.setOnCheckedChangeListener((b, on) -> {
-            if (refreshing || on == Prefs.isEnabled(this)) return;
-            Prefs.setEnabled(this, on);
-            if (on) {
-                for (int i = 0; i < Prefs.STREAMS.length; i++) {
-                    Prefs.setFloor(this, Prefs.STREAMS[i],
-                            checks[i].isChecked() ? bars[i].getProgress() : -1);
-                }
-                VolumeLockService.start(this);
-            }
-            master.postDelayed(this::refresh, 300);
-            if (!on) VolumeLockService.stop(this);
-        });
-        root.addView(master);
+        master = new Button(this);
+        master.setTextSize(26);
+        master.setTextColor(Color.WHITE);
+        master.setPadding(dp(16), dp(28), dp(16), dp(28));
+        master.setOnClickListener(v -> toggleLock());
+        root.addView(master, new LinearLayout.LayoutParams(-1, -2));
 
         status = new TextView(this);
         status.setTextSize(16);
@@ -212,7 +201,12 @@ public class MainActivity extends Activity {
 
     private void refresh() {
         refreshing = true;
-        master.setChecked(Prefs.isEnabled(this));
+        boolean on = Prefs.isEnabled(this);
+        master.setText(on ? "🔒 잠금 중\n(누르면 해제)" : "🔓 볼륨 잠금 시작");
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(20));
+        bg.setColor(on ? Color.parseColor("#2E7D32") : Color.parseColor("#1565C0"));
+        master.setBackground(bg);
         for (int i = 0; i < Prefs.STREAMS.length; i++) {
             int floor = Prefs.getFloor(this, Prefs.STREAMS[i]);
             boolean locked = floor >= 0;
@@ -229,6 +223,27 @@ public class MainActivity extends Activity {
         }
         refreshStatus();
         refreshing = false;
+    }
+
+    private void toggleLock() {
+        boolean on = !Prefs.isEnabled(this);
+        if (on) {
+            for (int i = 0; i < Prefs.STREAMS.length; i++) {
+                Prefs.setFloor(this, Prefs.STREAMS[i],
+                        checks[i].isChecked() ? bars[i].getProgress() : -1);
+            }
+            Prefs.setEnabled(this, true);
+            VolumeLockService.start(this);
+            if (!(isBlockerEnabled() && VolumeKeyBlocker.running)) {
+                android.widget.Toast.makeText(this,
+                        "잠금 시작! 볼륨 버튼까지 막으려면 아래 '볼륨 버튼 막기 켜기'도 해 주세요",
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        } else {
+            Prefs.setEnabled(this, false);
+            VolumeLockService.stop(this);
+        }
+        refresh();
     }
 
     private void refreshStatus() {

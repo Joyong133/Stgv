@@ -46,6 +46,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -skin 1080x2340
           target: google_apis
           arch: x86_64
           disable-animations: true
@@ -62,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete volume-lock --yes --cleanup-tag || true
-          gh release create volume-lock VolumeLock.apk \
+          gh release create volume-lock VolumeLock.apk screen.png \
             --title "볼륨 잠금 APK" \
             --notes "소리 줄이기를 막아주는 앱. VolumeLock.apk를 내려받아 설치하세요." \
             --target "${GITHUB_SHA}"

@@ -8,6 +8,10 @@ mvol() { vol | grep -o 'volume is [0-9]*' | grep -o '[0-9]*$'; }
 adb install -r "$APK"
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS
 for i in 1 2 3 4 5 6 7 8 9 10; do adb shell input keyevent KEYCODE_VOLUME_UP; done
+# 하드웨어 버튼 신호가 실제로 볼륨을 바꾸는지 먼저 확인 (접근성 켜기 전)
+B0=$(mvol); adb emu event send EV_KEY:KEY_VOLUMEDOWN:1 EV_SYN:0:0; sleep 0.1; adb emu event send EV_KEY:KEY_VOLUMEDOWN:0 EV_SYN:0:0; sleep 1
+echo "hw key sanity (no lock): $B0 -> $(mvol)"
+adb shell input keyevent KEYCODE_VOLUME_UP
 adb shell input keyevent KEYCODE_VOLUME_DOWN; adb shell input keyevent KEYCODE_VOLUME_DOWN
 sleep 1
 START=$(mvol); echo "start: $(vol) => $START"; [ -n "$START" ] || { echo "cannot read volume"; exit 1; }
@@ -36,7 +40,11 @@ adb shell settings put secure accessibility_enabled 1
 sleep 5
 echo "---- dumpsys accessibility ----"
 adb shell dumpsys accessibility | grep -o -E "(Bound|Enabled) services:\{[^}]{0,200}" | head -4
-for i in 1 2 3; do adb shell input keyevent KEYCODE_VOLUME_DOWN; done
+# 실제 하드웨어 버튼처럼 보내야 접근성 필터를 거칩니다 (input keyevent는 우회됨)
+for i in 1 2 3; do
+  adb emu event send EV_KEY:KEY_VOLUMEDOWN:1 EV_SYN:0:0; sleep 0.1
+  adb emu event send EV_KEY:KEY_VOLUMEDOWN:0 EV_SYN:0:0; sleep 0.3
+done
 v=$(mvol); R2="key test (no wait): start $START -> now $v"; echo "$R2"; [ "$v" = "$START" ] || FAIL=1
 
 adb shell input keyevent KEYCODE_BACK; sleep 1

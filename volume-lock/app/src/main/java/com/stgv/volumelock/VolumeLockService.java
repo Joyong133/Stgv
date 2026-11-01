@@ -23,9 +23,10 @@ import android.provider.Settings;
  * 볼륨 버튼, 알림창 슬라이더, 다른 앱이 볼륨을 낮추는 경우 모두 되돌립니다.
  */
 public class VolumeLockService extends Service {
+    static volatile boolean running;
     private static final String CHANNEL_ID = "volume_lock";
     private static final int NOTIFICATION_ID = 1;
-    private static final long POLL_MS = 500;
+    private static final long POLL_MS = 150;
 
     private AudioManager audio;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -71,6 +72,7 @@ public class VolumeLockService extends Service {
         super.onCreate();
         audio = (AudioManager) getSystemService(AUDIO_SERVICE);
         startInForeground();
+        running = true;
 
         getContentResolver().registerContentObserver(Settings.System.CONTENT_URI, true, observer);
         IntentFilter f = new IntentFilter();
@@ -97,6 +99,7 @@ public class VolumeLockService extends Service {
 
     @Override
     public void onDestroy() {
+        running = false;
         handler.removeCallbacksAndMessages(null);
         getContentResolver().unregisterContentObserver(observer);
         try {

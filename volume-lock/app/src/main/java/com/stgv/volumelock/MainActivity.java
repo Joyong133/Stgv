@@ -25,6 +25,8 @@ public class MainActivity extends Activity {
     private AudioManager audio;
     private Switch master;
     private Button dndButton;
+    private Button a11yButton;
+    private TextView status;
     private boolean refreshing;
     private final CheckBox[] checks = new CheckBox[Prefs.STREAMS.length];
     private final SeekBar[] bars = new SeekBar[Prefs.STREAMS.length];
@@ -73,12 +75,35 @@ public class MainActivity extends Activity {
                 }
                 VolumeLockService.start(this);
             }
+            master.postDelayed(this::refresh, 300);
             if (!on) VolumeLockService.stop(this);
         });
         root.addView(master);
 
+        status = new TextView(this);
+        status.setTextSize(16);
+        status.setPadding(0, dp(4), 0, dp(4));
+        root.addView(status);
+
+        a11yButton = new Button(this);
+        a11yButton.setText("① 볼륨 버튼 막기 켜기 (꼭 필요)");
+        a11yButton.setOnClickListener(v -> {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("볼륨 버튼 막기 켜는 법")
+                    .setMessage("다음 화면에서 [설치된 앱] → [볼륨 잠금 - 볼륨 버튼 막기] → 사용 으로 켜 주세요.\n\n"
+                            + "'제한된 설정'이라며 켜지지 않으면:\n"
+                            + "설정 → 애플리케이션 → 볼륨 잠금 → 오른쪽 위 ⋮ → '제한된 설정 허용' 을 누른 뒤 다시 켜세요.")
+                    .setPositiveButton("설정 열기", (d, w) ->
+                            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
+                    .setNeutralButton("앱 정보 열기", (d, w) ->
+                            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.parse("package:" + getPackageName()))))
+                    .show();
+        });
+        root.addView(a11yButton);
+
         TextView help = new TextView(this);
-        help.setText("체크한 항목은 아래 막대로 정한 볼륨보다 낮아지지 않습니다.\n"
+        help.setText("잠금을 켜면 볼륨 내림 버튼이 막힙니다. 또 체크한 항목은 아래 막대로 정한 볼륨보다 낮아지지 않습니다.\n"
                 + "볼륨 버튼이나 다른 앱이 소리를 줄여도 바로 원래대로 돌아옵니다. "
                 + "소리를 올리는 것은 자유롭게 됩니다.");
         help.setPadding(0, dp(4), 0, dp(16));
@@ -185,7 +210,20 @@ public class MainActivity extends Activity {
         } else {
             dndButton.setVisibility(View.GONE);
         }
+        boolean blocker = isBlockerEnabled();
+        a11yButton.setVisibility(blocker ? View.GONE : View.VISIBLE);
+        String st;
+        if (!Prefs.isEnabled(this)) st = "⚪ 잠금 꺼짐";
+        else if (blocker) st = "🟢 잠금 작동 중 — 볼륨 내림 버튼이 막혀 있어요";
+        else st = "🟡 잠금 켜짐 — 볼륨 버튼 막기가 꺼져 있어 줄였다가 되돌아오기만 해요";
+        status.setText(st);
         refreshing = false;
+    }
+
+    private boolean isBlockerEnabled() {
+        String list = Settings.Secure.getString(getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return list != null && list.contains(getPackageName() + "/");
     }
 
     private void updateLabel(int i) {

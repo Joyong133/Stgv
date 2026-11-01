@@ -32,6 +32,19 @@
                 android:value="Keeps the device volume from being lowered below a user-chosen level" />
         </service>
 
+        <service
+            android:name=".VolumeKeyBlocker"
+            android:exported="true"
+            android:label="볼륨 잠금 - 볼륨 버튼 막기"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/key_blocker" />
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">볼륨 잠금</string>
+    <string name="blocker_desc">잠금이 켜져 있을 때 볼륨 내림 버튼을 눌러도 소리가 줄어들지 않게 막습니다.</string>
 </resources>

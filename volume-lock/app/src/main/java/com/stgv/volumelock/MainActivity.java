@@ -232,7 +232,7 @@ public class MainActivity extends Activity {
     }
 
     private void refreshStatus() {
-        boolean blocker = isBlockerEnabled();
+        boolean blocker = isBlockerEnabled() && VolumeKeyBlocker.running;
         a11yButton.setVisibility(blocker ? View.GONE : View.VISIBLE);
         String st;
         if (!Prefs.isEnabled(this)) st = "⚪ 잠금 꺼짐";

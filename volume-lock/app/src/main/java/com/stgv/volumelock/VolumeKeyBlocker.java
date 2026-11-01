@@ -15,6 +15,7 @@ public class VolumeKeyBlocker extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         running = true;
+        android.util.Log.i("VolumeLock", "key blocker connected, flags=" + getServiceInfo().flags);
         if (Prefs.isEnabled(this)) VolumeLockService.start(this);
     }
 

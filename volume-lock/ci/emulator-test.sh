@@ -35,7 +35,7 @@ adb shell settings put secure enabled_accessibility_services $PKG/$PKG.VolumeKey
 adb shell settings put secure accessibility_enabled 1
 sleep 5
 echo "---- dumpsys accessibility ----"
-adb shell dumpsys accessibility | grep -i -E "volumelock|Bound services|Enabled services|installed|crashed" | head -20
+adb shell dumpsys accessibility | grep -o -E "(Bound|Enabled) services:\{[^}]{0,200}" | head -4
 for i in 1 2 3; do adb shell input keyevent KEYCODE_VOLUME_DOWN; done
 v=$(mvol); R2="key test (no wait): start $START -> now $v"; echo "$R2"; [ "$v" = "$START" ] || FAIL=1
 
@@ -45,7 +45,7 @@ adb exec-out screencap -p > screen.png
 adb shell uiautomator dump /sdcard/ui.xml >/dev/null
 adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*진단[^"]*"'
 echo "---- app log ----"
-adb logcat -d | grep -i -E "VolumeLock|FATAL|E AndroidRuntime|Accessibility.*(volumelock|bind|error)" | tail -40
+adb logcat -d | grep -E " VolumeLock:|FATAL|E AndroidRuntime" | tail -40
 echo "===== SUMMARY ====="; echo "$R1"; echo "$R2"
 adb shell cat /sdcard/ui.xml | grep -o 'text="[^"]*진단[^"]*"'
 echo "RESULT FAIL=$FAIL"

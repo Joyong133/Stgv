@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityEvent;
  */
 public class VolumeKeyBlocker extends AccessibilityService {
     static volatile boolean running;
+    static volatile int blocked;
 
     @Override
     protected void onServiceConnected() {
@@ -28,7 +29,12 @@ public class VolumeKeyBlocker extends AccessibilityService {
         if (!Prefs.isEnabled(this)) return false;
         int code = event.getKeyCode();
         // 음소거 버튼과 볼륨 내림 버튼을 막습니다. (true = 시스템에 전달하지 않음)
-        return code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE;
+        if (code == KeyEvent.KEYCODE_VOLUME_DOWN || code == KeyEvent.KEYCODE_VOLUME_MUTE) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) blocked++;
+            android.util.Log.i("VolumeLock", "volume key blocked: " + code);
+            return true;
+        }
+        return false;
     }
 
     @Override

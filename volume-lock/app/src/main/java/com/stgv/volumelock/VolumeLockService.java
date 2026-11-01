@@ -24,6 +24,7 @@ import android.provider.Settings;
  */
 public class VolumeLockService extends Service {
     static volatile boolean running;
+    static volatile int restored;
     private static final String CHANNEL_ID = "volume_lock";
     private static final int NOTIFICATION_ID = 1;
     private static final long POLL_MS = 150;
@@ -125,10 +126,14 @@ public class VolumeLockService extends Service {
                 if (Build.VERSION.SDK_INT >= 23 && floor > 0 && audio.isStreamMute(stream)) {
                     audio.adjustStreamVolume(stream, AudioManager.ADJUST_UNMUTE, 0);
                 }
-                if (audio.getStreamVolume(stream) < floor) {
+                int cur = audio.getStreamVolume(stream);
+                if (cur < floor) {
                     audio.setStreamVolume(stream, floor, 0);
+                    restored++;
+                    android.util.Log.i("VolumeLock", "restored stream " + stream + ": " + cur + " -> " + floor);
                 }
-            } catch (SecurityException ignored) {
+            } catch (SecurityException e) {
+                android.util.Log.w("VolumeLock", "cannot set stream " + stream, e);
                 // 방해 금지 모드에서는 '방해 금지 권한'이 없으면 벨소리/알림을 바꿀 수 없습니다.
             }
         }

@@ -48,7 +48,24 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // 서비스가 시스템에 의해 꺼졌어도 앱을 열면 다시 켭니다.
+        if (Prefs.isEnabled(this) && !VolumeLockService.running) VolumeLockService.start(this);
         refresh();
+        status.postDelayed(ticker, 1000);
+    }
+
+    private final Runnable ticker = new Runnable() {
+        @Override
+        public void run() {
+            refreshStatus();
+            status.postDelayed(this, 1000);
+        }
+    };
+
+    @Override
+    protected void onPause() {
+        status.removeCallbacks(ticker);
+        super.onPause();
     }
 
     private int dp(int v) {
@@ -210,14 +227,23 @@ public class MainActivity extends Activity {
         } else {
             dndButton.setVisibility(View.GONE);
         }
+        refreshStatus();
+        refreshing = false;
+    }
+
+    private void refreshStatus() {
         boolean blocker = isBlockerEnabled();
         a11yButton.setVisibility(blocker ? View.GONE : View.VISIBLE);
         String st;
         if (!Prefs.isEnabled(this)) st = "⚪ 잠금 꺼짐";
         else if (blocker) st = "🟢 잠금 작동 중 — 볼륨 내림 버튼이 막혀 있어요";
-        else st = "🟡 잠금 켜짐 — 볼륨 버튼 막기가 꺼져 있어 줄였다가 되돌아오기만 해요";
+        else st = "🟡 잠금 켜짐 — 볼륨 버튼 막기(접근성)가 꺼져 있어요";
+        int music = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+        st += "\n[진단] 감시 서비스: " + (VolumeLockService.running ? "실행 중" : "꺼짐")
+                + " · 버튼 서비스: " + (VolumeKeyBlocker.running ? "연결됨" : "연결 안 됨")
+                + "\n막은 버튼 " + VolumeKeyBlocker.blocked + "회 · 되돌린 볼륨 " + VolumeLockService.restored + "회"
+                + " · 지금 미디어 볼륨 " + music + " (최소 " + Prefs.getFloor(this, AudioManager.STREAM_MUSIC) + ")";
         status.setText(st);
-        refreshing = false;
     }
 
     private boolean isBlockerEnabled() {

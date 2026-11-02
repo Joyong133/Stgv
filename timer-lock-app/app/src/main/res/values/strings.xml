@@ -2,12 +2,12 @@
 <resources>
     <string name="app_name">타이머 잠금</string>
     <string name="service_label">타이머 잠금</string>
-    <string name="service_description">선택한 앱을 열면 1분·3분·5분 타이머 화면을 띄워 잠시 사용을 막습니다. 어떤 앱이 화면 앞에 열렸는지(앱 이름)만 확인하며, 화면 내용이나 입력한 글자는 읽지 않습니다.</string>
+    <string name="service_description">선택한 앱을 열면 1분·3분·5분 타이머 화면을 띄우고, 시간이 끝나면 그 앱을 닫습니다. 어떤 앱이 화면 앞에 열렸는지(앱 이름)만 확인하며, 화면 내용이나 입력한 글자는 읽지 않습니다.</string>
 
     <string name="perm_title_off">접근성 권한을 켜 주세요</string>
     <string name="perm_body_off">앱이 열리는 순간을 감지하려면 접근성 서비스가 필요합니다.\n\n1. 아래 \'접근성 설정 열기\' → 설치된 앱(또는 다운로드한 앱) → \'타이머 잠금\'을 켜 주세요.\n2. 스위치가 회색으로 눌리지 않으면(제한된 설정): \'앱 정보 열기\' → 오른쪽 위 ⋮ → \'제한된 설정 허용\' 후 다시 1번을 해 주세요.</string>
     <string name="perm_title_on">작동 중</string>
-    <string name="perm_body_on">접근성 서비스가 켜져 있습니다. 차단할 앱을 열면 타이머 화면이 나타납니다.</string>
+    <string name="perm_body_on">접근성 서비스가 켜져 있습니다. 타이머 대상 앱을 열면 타이머 화면이 나타나고, 시간이 끝나면 그 앱이 닫힙니다.</string>
     <string name="open_accessibility">접근성 설정 열기</string>
     <string name="open_app_info">앱 정보 열기</string>
 
@@ -24,11 +24,11 @@
     <string name="empty">해당하는 앱이 없습니다</string>
 
     <string name="overlay_title">잠깐 쉬어 가요</string>
-    <string name="overlay_body">타이머가 끝나면 이 앱을 사용할 수 있어요</string>
+    <string name="overlay_body">타이머가 끝나면 이 앱은 자동으로 닫혀요</string>
     <string name="overlay_whitelist">화이트리스트 앱 열기</string>
     <string name="whitelist_title">화이트리스트 앱</string>
     <string name="whitelist_empty">화이트리스트로 체크한 앱이 없어요.\n타이머 잠금 앱에서 앱을 눌러 \'화이트리스트\'로 지정하세요.</string>
     <string name="whitelist_back">타이머로 돌아가기</string>
     <string name="whitelist_remaining">남은 시간 %1$s</string>
-    <string name="unlocked_toast">%1$s 을(를) 이제 사용할 수 있어요</string>
+    <string name="closed_toast">시간이 끝나 %1$s 을(를) 닫았어요</string>
 </resources>

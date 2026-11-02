@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 타이머가 끝난 앱을 닫기(백그라운드 프로세스 종료) 위한 권한 -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
     <!-- 설치된 앱 목록(런처 아이콘이 있는 앱)과 홈 앱을 조회하기 위한 선언 -->
     <queries>
         <intent>

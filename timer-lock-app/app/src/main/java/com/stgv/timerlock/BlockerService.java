@@ -1,6 +1,7 @@
 package com.stgv.timerlock;
 
 import android.accessibilityservice.AccessibilityService;
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -39,8 +40,8 @@ import java.util.Set;
  *
  * 동작 방식
  * - 대상 앱을 열 때마다 1/3/5분 카운트다운 화면이 앱을 가립니다(터치 불가).
- * - 타이머가 끝나면 화면이 사라지고, 그 앱 안에 머무는 동안은 다시 막지 않습니다.
- * - 다른 앱으로 나갔다가 다시 열면 타이머가 처음부터 다시 시작됩니다.
+ * - 타이머가 끝나면 바로 홈 화면으로 보내고 그 앱의 프로세스를 종료합니다(앱 닫기).
+ * - 다시 열면 타이머가 처음부터 다시 시작됩니다.
  * - 타이머 화면의 '화이트리스트 앱 열기'로 허용된 앱을 바로 열 수 있습니다.
  */
 public class BlockerService extends AccessibilityService {
@@ -48,6 +49,10 @@ public class BlockerService extends AccessibilityService {
     private static final long REFRESH_INTERVAL_MS = 5 * 60_000L;
     private static final long UNKNOWN_REFRESH_MIN_MS = 10_000L;
     private static final String SETTINGS_PKG = "com.android.settings";
+    /** 홈으로 보낸 뒤 앱 프로세스를 종료하기까지 기다리는 시간(완전히 백그라운드로 내려간 뒤에 종료해야 함) */
+    private static final long KILL_DELAY_MS = 1_200L;
+    /** 홈 화면 전환 이벤트가 오지 않을 때 타이머 화면을 강제로 닫는 시간 */
+    private static final long HIDE_FALLBACK_MS = 2_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -61,9 +66,6 @@ public class BlockerService extends AccessibilityService {
 
     /** 현재 화면 앞의 앱 */
     private String foreground;
-    /** 이번에 열었을 때 타이머를 다 기다린 앱 (나가면 지워짐) */
-    private final Set<String> unlocked = new HashSet<>();
-
     private View overlay;
     private String overlayPkg;
     private long overlayEnd;
@@ -144,17 +146,12 @@ public class BlockerService extends AccessibilityService {
     }
 
     private void onForeground(String pkg) {
-        if (!pkg.equals(foreground)) {
-            // 다른 앱으로 넘어가면 이전 앱의 허가는 사라짐 → 다음에 열면 타이머 다시 시작
-            if (foreground != null) unlocked.remove(foreground);
-            foreground = pkg;
-        }
+        foreground = pkg;
 
         if (overlay != null && !pkg.equals(overlayPkg)) hideOverlay();
 
         int minutes = effectiveMinutes(pkg);
         if (minutes <= 0) return;
-        if (unlocked.contains(pkg)) return;   // 이번에 이미 타이머를 다 기다림
         if (overlay != null) return;          // 이미 이 앱의 타이머가 떠 있음
 
         long total = minutes * 60_000L;
@@ -390,18 +387,43 @@ public class BlockerService extends AccessibilityService {
         whitelistPanel.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
+    /** 시간이 끝남 → 홈으로 보내고 그 앱을 닫음. 타이머 화면은 홈이 앞에 올 때까지 유지(앱이 비치지 않도록). */
     private void finishCountdown() {
-        String pkg = overlayPkg;
-        hideOverlay();
-        if (pkg == null) return;
-        unlocked.add(pkg);
+        final String pkg = overlayPkg;
+        handler.removeCallbacks(ticker);
+        if (pkg == null) {
+            hideOverlay();
+            return;
+        }
+        countdownText.setText("0:00");
+        ring.setProgress(0f);
+
+        performGlobalAction(GLOBAL_ACTION_HOME);
+
+        final View closingOverlay = overlay;
+        handler.postDelayed(() -> {
+            // 홈 전환 이벤트로 이미 닫혔으면 아무것도 안 함
+            if (overlay != null && overlay == closingOverlay) hideOverlay();
+        }, HIDE_FALLBACK_MS);
+        handler.postDelayed(() -> killApp(pkg), KILL_DELAY_MS);
+
         String label = pkg;
         try {
             PackageManager pm = getPackageManager();
             label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
         } catch (PackageManager.NameNotFoundException ignored) {
         }
-        Toast.makeText(this, getString(R.string.unlocked_toast, label), Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.closed_toast, label), Toast.LENGTH_SHORT).show();
+    }
+
+    /** 백그라운드로 내려간 앱의 프로세스를 종료 (다시 열면 처음부터 시작됨) */
+    private void killApp(String pkg) {
+        if (pkg.equals(foreground)) return; // 아직 앞에 있으면(홈 전환 실패) 종료하지 않음
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am != null) am.killBackgroundProcesses(pkg);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     private void hideOverlay() {

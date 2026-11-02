@@ -25,6 +25,10 @@
 
     <string name="overlay_title">잠깐 쉬어 가요</string>
     <string name="overlay_body">타이머가 끝나면 이 앱을 사용할 수 있어요</string>
-    <string name="overlay_home">홈으로 나가기</string>
+    <string name="overlay_whitelist">화이트리스트 앱 열기</string>
+    <string name="whitelist_title">화이트리스트 앱</string>
+    <string name="whitelist_empty">화이트리스트로 체크한 앱이 없어요.\n타이머 잠금 앱에서 앱을 눌러 \'화이트리스트\'로 지정하세요.</string>
+    <string name="whitelist_back">타이머로 돌아가기</string>
+    <string name="whitelist_remaining">남은 시간 %1$s</string>
     <string name="unlocked_toast">%1$s 을(를) 이제 사용할 수 있어요</string>
 </resources>

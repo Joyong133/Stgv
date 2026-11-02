@@ -3,6 +3,10 @@ package com.stgv.timerlock;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * 설정 저장소.
  * <ul>
@@ -73,6 +77,18 @@ public final class Prefs {
         e.apply();
         // 규칙이 바뀌면 진행 중이던 타이머는 처음부터 다시 계산
         clearEnd(pkg);
+    }
+
+    /** 화이트리스트로 체크된 앱들의 패키지 이름 */
+    public Set<String> getWhitelist() {
+        Set<String> out = new HashSet<>();
+        for (Map.Entry<String, ?> e : rules.getAll().entrySet()) {
+            if (e.getKey().startsWith(RULE_PREFIX) && e.getValue() instanceof Integer
+                    && (Integer) e.getValue() == RULE_WHITELIST) {
+                out.add(e.getKey().substring(RULE_PREFIX.length()));
+            }
+        }
+        return out;
     }
 
     public long getEnd(String pkg) {

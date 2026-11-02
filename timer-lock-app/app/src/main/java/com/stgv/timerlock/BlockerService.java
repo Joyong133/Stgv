@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -22,33 +23,30 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.HashMap;
+import java.text.Collator;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * 화면 앞에 열린 앱을 감지해서, 타이머 대상이면 전체 화면 타이머를 덮어씌웁니다.
  *
  * 동작 방식
- * - 대상 앱을 열면 1/3/5분 카운트다운 화면이 앱을 가립니다(터치 불가).
- * - 타이머가 끝나면 화면이 사라지고, 그 앱을 계속 쓰는 동안은 다시 막지 않습니다.
- * - 다른 앱으로 나가면(15초 이상) 다음에 다시 열 때 타이머가 또 시작됩니다.
- * - 카운트다운 중에 나갔다가 돌아오면 남은 시간이 이어집니다.
- * - 화이트리스트 앱은 언제나 바로 사용 가능합니다.
+ * - 대상 앱을 열 때마다 1/3/5분 카운트다운 화면이 앱을 가립니다(터치 불가).
+ * - 타이머가 끝나면 화면이 사라지고, 그 앱 안에 머무는 동안은 다시 막지 않습니다.
+ * - 다른 앱으로 나갔다가 다시 열면 타이머가 처음부터 다시 시작됩니다.
+ * - 타이머 화면의 '화이트리스트 앱 열기'로 허용된 앱을 바로 열 수 있습니다.
  */
 public class BlockerService extends AccessibilityService {
 
-    /** 사용 허가된 앱을 잠깐 벗어났다 돌아와도 다시 막지 않는 시간 */
-    private static final long RETURN_GRACE_MS = 15_000L;
-    /** 밖에 나가 있는 사이 타이머가 끝났을 때, 이 시간 안에 돌아오면 바로 허용 */
-    private static final long EXPIRED_UNLOCK_WINDOW_MS = 120_000L;
     private static final long REFRESH_INTERVAL_MS = 5 * 60_000L;
+    private static final long UNKNOWN_REFRESH_MIN_MS = 10_000L;
     private static final String SETTINGS_PKG = "com.android.settings";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -63,15 +61,18 @@ public class BlockerService extends AccessibilityService {
 
     /** 현재 화면 앞의 앱 */
     private String foreground;
-    /** 타이머를 통과한 앱 → 벗어난 시각(0 = 지금 사용 중) */
-    private final Map<String, Long> unlocked = new HashMap<>();
+    /** 이번에 열었을 때 타이머를 다 기다린 앱 (나가면 지워짐) */
+    private final Set<String> unlocked = new HashSet<>();
 
     private View overlay;
     private String overlayPkg;
     private long overlayEnd;
     private long overlayTotal;
     private TextView countdownText;
+    private TextView miniCountdown;
     private CountdownRingView ring;
+    private View timerPanel;
+    private View whitelistPanel;
 
     private final Runnable ticker = new Runnable() {
         @Override
@@ -83,7 +84,9 @@ public class BlockerService extends AccessibilityService {
                 return;
             }
             long secs = (remaining + 999) / 1000;
-            countdownText.setText(String.format(Locale.US, "%d:%02d", secs / 60, secs % 60));
+            String time = String.format(Locale.US, "%d:%02d", secs / 60, secs % 60);
+            countdownText.setText(time);
+            miniCountdown.setText(getString(R.string.whitelist_remaining, time));
             ring.setProgress(remaining / (float) overlayTotal);
             handler.postDelayed(this, 200);
         }
@@ -128,20 +131,22 @@ public class BlockerService extends AccessibilityService {
             if (cls == null || !MainActivity.class.getName().contentEquals(cls)) return;
         } else if (transientPkgs.contains(pkg)) {
             return;
+        } else {
+            refreshPackages(false);
+            if (!launcherPkgs.contains(pkg) && !exemptPkgs.contains(pkg)) {
+                // 새로 설치된 앱일 수 있으니 한 번 더 확인
+                if (System.currentTimeMillis() - lastRefresh > UNKNOWN_REFRESH_MIN_MS) refreshPackages(true);
+                // 앱 서랍에 없는 패키지(권한 창, 시스템 팝업 등)는 앱 전환으로 보지 않음
+                if (!launcherPkgs.contains(pkg) && !exemptPkgs.contains(pkg)) return;
+            }
         }
-
-        refreshPackages(false);
         onForeground(pkg);
     }
 
     private void onForeground(String pkg) {
-        long now = System.currentTimeMillis();
-
         if (!pkg.equals(foreground)) {
-            if (foreground != null) {
-                Long state = unlocked.get(foreground);
-                if (state != null && state == 0L) unlocked.put(foreground, now);
-            }
+            // 다른 앱으로 넘어가면 이전 앱의 허가는 사라짐 → 다음에 열면 타이머 다시 시작
+            if (foreground != null) unlocked.remove(foreground);
             foreground = pkg;
         }
 
@@ -149,36 +154,11 @@ public class BlockerService extends AccessibilityService {
 
         int minutes = effectiveMinutes(pkg);
         if (minutes <= 0) return;
-
-        Long leftAt = unlocked.get(pkg);
-        if (leftAt != null && (leftAt == 0L || now - leftAt <= RETURN_GRACE_MS)) {
-            unlocked.put(pkg, 0L);
-            return;
-        }
-        unlocked.remove(pkg);
-
-        if (overlay != null) return; // 이미 이 앱의 타이머가 떠 있음
+        if (unlocked.contains(pkg)) return;   // 이번에 이미 타이머를 다 기다림
+        if (overlay != null) return;          // 이미 이 앱의 타이머가 떠 있음
 
         long total = minutes * 60_000L;
-        long end = prefs.getEnd(pkg);
-        if (end > 0) {
-            if (now >= end) {
-                if (now - end <= EXPIRED_UNLOCK_WINDOW_MS) {
-                    // 나가 있는 동안 타이머가 끝났음 → 바로 사용 허가
-                    prefs.clearEnd(pkg);
-                    unlocked.put(pkg, 0L);
-                    return;
-                }
-                end = 0; // 오래된 기록 → 새 타이머
-            } else if (end - now > total) {
-                end = 0; // 시간 설정이 줄었거나 시계가 바뀜
-            }
-        }
-        if (end == 0) {
-            end = now + total;
-            prefs.setEnd(pkg, end);
-        }
-        showOverlay(pkg, end, total);
+        showOverlay(pkg, System.currentTimeMillis() + total, total);
     }
 
     /** 이 앱에 걸 타이머(분). 0 이하면 막지 않음. */
@@ -216,8 +196,41 @@ public class BlockerService extends AccessibilityService {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xFF111827);
         root.setClickable(true); // 아래 앱으로 터치가 전달되지 않도록
-        root.setFocusable(true);
 
+        timerPanel = buildTimerPanel(label, icon);
+        root.addView(timerPanel, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+
+        whitelistPanel = buildWhitelistPanel();
+        whitelistPanel.setVisibility(View.GONE);
+        root.addView(whitelistPanel, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.OPAQUE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        lp.gravity = Gravity.TOP | Gravity.START;
+
+        try {
+            windowManager.addView(root, lp);
+            overlay = root;
+            handler.removeCallbacks(ticker);
+            ticker.run();
+        } catch (RuntimeException e) {
+            overlay = null;
+            overlayPkg = null;
+        }
+    }
+
+    /** 카운트다운 화면: 앱 아이콘, 원형 타이머, 화이트리스트 앱 열기 버튼 */
+    private View buildTimerPanel(String label, Drawable icon) {
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -247,63 +260,141 @@ public class BlockerService extends AccessibilityService {
         dial.addView(ring, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         countdownText = text("", 52, Color.WHITE, true);
-        countdownText.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         dial.addView(countdownText, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
         column.addView(dial, new LinearLayout.LayoutParams(dp(230), dp(230)));
 
-        Button home = new Button(this);
-        home.setText(R.string.overlay_home);
-        home.setAllCaps(false);
-        home.setTextColor(Color.WHITE);
-        home.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFF3D5AFE);
-        bg.setCornerRadius(dp(26));
-        home.setBackground(bg);
-        home.setPadding(dp(32), 0, dp(32), 0);
-        home.setOnClickListener(v -> {
-            performGlobalAction(GLOBAL_ACTION_HOME);
-            hideOverlay();
-        });
-        LinearLayout.LayoutParams homeLp = new LinearLayout.LayoutParams(
+        Button whitelist = pillButton(getString(R.string.overlay_whitelist), 0xFF1E8E3E);
+        whitelist.setOnClickListener(v -> showWhitelist(true));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, dp(52));
-        homeLp.topMargin = dp(36);
-        column.addView(home, homeLp);
+        lp.topMargin = dp(36);
+        column.addView(whitelist, lp);
+        return column;
+    }
 
-        root.addView(column, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+    /** 화이트리스트 앱 목록 화면: 누르면 그 앱이 열림 */
+    private View buildWhitelistPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(48), dp(20), dp(28));
 
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.OPAQUE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        TextView title = text(getString(R.string.whitelist_title), 24, Color.WHITE, true);
+        panel.addView(title, matchWrap());
+
+        miniCountdown = text("", 15, 0xFFFFD54F, false);
+        miniCountdown.setPadding(0, dp(6), 0, dp(16));
+        panel.addView(miniCountdown, matchWrap());
+
+        List<AppInfo> apps = loadWhitelistApps();
+        if (apps.isEmpty()) {
+            TextView empty = text(getString(R.string.whitelist_empty), 15, 0xFF9CA3AF, false);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+            empty.setGravity(Gravity.CENTER);
+            panel.addView(empty, lp);
+        } else {
+            ScrollView scroll = new ScrollView(this);
+            LinearLayout grid = new LinearLayout(this);
+            grid.setOrientation(LinearLayout.VERTICAL);
+            final int perRow = 4;
+            LinearLayout row = null;
+            for (int i = 0; i < apps.size(); i++) {
+                if (i % perRow == 0) {
+                    row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    grid.addView(row, matchWrap());
+                }
+                row.addView(appCell(apps.get(i)),
+                        new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            }
+            // 마지막 줄 빈칸 채우기(아이콘 크기 맞춤)
+            int rest = apps.size() % perRow;
+            if (rest != 0 && row != null) {
+                for (int i = rest; i < perRow; i++) {
+                    row.addView(new View(this),
+                            new LinearLayout.LayoutParams(0, 1, 1f));
+                }
+            }
+            scroll.addView(grid);
+            panel.addView(scroll, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         }
-        lp.gravity = Gravity.TOP | Gravity.START;
 
+        Button back = pillButton(getString(R.string.whitelist_back), 0xFF374151);
+        back.setOnClickListener(v -> showWhitelist(false));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(52));
+        lp.gravity = Gravity.CENTER_HORIZONTAL;
+        lp.topMargin = dp(16);
+        panel.addView(back, lp);
+        return panel;
+    }
+
+    private View appCell(AppInfo app) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setGravity(Gravity.CENTER_HORIZONTAL);
+        cell.setPadding(dp(4), dp(10), dp(4), dp(10));
+        cell.setClickable(true);
+        TypedValue tv = new TypedValue();
+        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)) {
+            cell.setBackgroundResource(tv.resourceId);
+        }
+
+        ImageView iv = new ImageView(this);
+        iv.setImageDrawable(app.icon);
+        cell.addView(iv, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        TextView name = text(app.label, 12, Color.WHITE, false);
+        name.setMaxLines(2);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setPadding(0, dp(6), 0, 0);
+        cell.addView(name, matchWrap());
+
+        cell.setOnClickListener(v -> launch(app.pkg));
+        return cell;
+    }
+
+    private List<AppInfo> loadWhitelistApps() {
+        List<AppInfo> list = new ArrayList<>();
+        PackageManager pm = getPackageManager();
+        for (String pkg : prefs.getWhitelist()) {
+            if (pkg.equals(getPackageName())) continue;
+            if (pm.getLaunchIntentForPackage(pkg) == null) continue; // 지워졌거나 열 수 없는 앱
+            try {
+                ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                list.add(new AppInfo(pkg, pm.getApplicationLabel(ai).toString(), pm.getApplicationIcon(ai)));
+            } catch (PackageManager.NameNotFoundException ignored) {
+            }
+        }
+        Collator collator = Collator.getInstance(Locale.KOREAN);
+        list.sort((a, b) -> collator.compare(a.label, b.label));
+        return list;
+    }
+
+    private void launch(String pkg) {
+        Intent intent = getPackageManager().getLaunchIntentForPackage(pkg);
+        if (intent == null) return;
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
         try {
-            windowManager.addView(root, lp);
-            overlay = root;
-            handler.removeCallbacks(ticker);
-            ticker.run();
-        } catch (RuntimeException e) {
-            overlay = null;
-            overlayPkg = null;
+            startActivity(intent);
+            // 화이트리스트 앱이 앞에 오면 onForeground 에서 타이머 화면이 닫힘
+        } catch (RuntimeException ignored) {
         }
+    }
+
+    private void showWhitelist(boolean show) {
+        if (timerPanel == null || whitelistPanel == null) return;
+        timerPanel.setVisibility(show ? View.GONE : View.VISIBLE);
+        whitelistPanel.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     private void finishCountdown() {
         String pkg = overlayPkg;
         hideOverlay();
         if (pkg == null) return;
-        prefs.clearEnd(pkg);
-        long now = System.currentTimeMillis();
-        unlocked.put(pkg, pkg.equals(foreground) ? 0L : now);
+        unlocked.add(pkg);
         String label = pkg;
         try {
             PackageManager pm = getPackageManager();
@@ -324,7 +415,26 @@ public class BlockerService extends AccessibilityService {
         overlay = null;
         overlayPkg = null;
         countdownText = null;
+        miniCountdown = null;
         ring = null;
+        timerPanel = null;
+        whitelistPanel = null;
+    }
+
+    // ---------------------------------------------------------------- 뷰 도우미
+
+    private Button pillButton(String label, int color) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(color);
+        bg.setCornerRadius(dp(26));
+        b.setBackground(bg);
+        b.setPadding(dp(32), 0, dp(32), 0);
+        return b;
     }
 
     private TextView text(String s, int sp, int color, boolean bold) {
@@ -340,6 +450,11 @@ public class BlockerService extends AccessibilityService {
     private LinearLayout.LayoutParams wrap() {
         return new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 
     private int dp(int v) {

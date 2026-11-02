@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#3D5AFE</color>
+    <color name="primary_dark">#2A3EB1</color>
+    <color name="bg">#F4F6FB</color>
+    <color name="card">#FFFFFF</color>
+    <color name="text">#1B1F2A</color>
+    <color name="text_sub">#6B7280</color>
+    <color name="divider">#E5E7EB</color>
+    <color name="warn_bg">#FFF1F0</color>
+    <color name="warn">#D93025</color>
+    <color name="ok_bg">#E8F5E9</color>
+    <color name="ok">#1E8E3E</color>
+    <color name="block">#E8590C</color>
+    <color name="neutral">#9CA3AF</color>
+    <color name="launcher_bg">#3D5AFE</color>
+</resources>

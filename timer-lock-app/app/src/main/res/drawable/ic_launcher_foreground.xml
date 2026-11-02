@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 모래시계 + 자물쇠 느낌의 런처 아이콘 (108dp 적응형 아이콘 전경) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 시계 테두리 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:pathData="M54,30a24,24 0,1 1,0 48a24,24 0,1 1,0 -48z" />
+    <!-- 남은 시간 부채꼴 -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,54L54,36A18,18 0,0 1,71.1 48.4Z" />
+    <!-- 시계 바늘 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M54,54L54,40M54,54L63,60" />
+    <!-- 위쪽 버튼 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,22h12v6h-12z" />
+</vector>

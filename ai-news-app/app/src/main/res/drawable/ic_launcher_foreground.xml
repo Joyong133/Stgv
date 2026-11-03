@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 네 회사 색 점이 둘러싼 반짝임(새 소식) 모양 런처 아이콘 (108dp 적응형 아이콘 전경) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 가운데 네 갈래 반짝임 -->
+    <path android:fillColor="#ECEFF4"
+        android:pathData="M54,32C56,46 62,52 76,54C62,56 56,62 54,76C52,62 46,56 32,54C46,52 52,46 54,32Z" />
+    <!-- OpenAI · Claude · Google · Grok -->
+    <path android:fillColor="#10A37F" android:pathData="M36,36m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#D97757" android:pathData="M72,36m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#4285F4" android:pathData="M36,72m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#B0B6C3" android:pathData="M72,72m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+</vector>

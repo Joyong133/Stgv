@@ -1,0 +1,48 @@
+name: AI 모델 소식 APK 빌드
+
+on:
+  push:
+    paths:
+      - 'ai-news-app/**'
+      - '.github/workflows/ai-news-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-news-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk AiNews.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AiNews-apk
+          path: ai-news-app/AiNews.apk
+
+      - name: Publish release (최신 APK 다운로드 링크)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ai-news-latest --cleanup-tag -y || true
+          gh release create ai-news-latest AiNews.apk \
+            --target "${GITHUB_SHA}" \
+            --title "AI 모델 소식 APK (최신)" \
+            --notes "브랜치 ${GITHUB_REF_NAME} · 커밋 ${GITHUB_SHA::7} 에서 빌드된 APK입니다. 휴대폰에서 AiNews.apk 를 내려받아 설치하세요." \
+            --prerelease

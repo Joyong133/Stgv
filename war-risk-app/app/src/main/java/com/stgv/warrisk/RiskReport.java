@@ -47,6 +47,20 @@ public class RiskReport {
         }
     }
 
+    /** 보도된 군 경계태세 (종류별로 가장 최근 보도 기준). */
+    public static class AlertStatus {
+        public int kind;          // AlertStatusDetector.KIND_*
+        public int value;
+        public int articles;      // 이 단계를 보도한 기사 수
+        public long latestMs;
+        public String title;
+        public String url;
+
+        public String text() {
+            return AlertStatusDetector.valueText(kind, value);
+        }
+    }
+
     /** 전쟁 확률을 몇 배 올렸는지 보여주는 요인. */
     public static class OddsFactor {
         public String name;
@@ -62,6 +76,13 @@ public class RiskReport {
     public double warProb;      // 0~1, 향후 30일 전쟁 가능성 어림값
     public List<OddsFactor> warFactors = new ArrayList<>();
     public List<EmbassyEvent> embassyEvents = new ArrayList<>();
+    public List<AlertStatus> alertStatuses = new ArrayList<>();
+
+    /** 해당 종류의 보도된 경계태세, 없으면 null. */
+    public AlertStatus alertStatus(int kind) {
+        for (AlertStatus a : alertStatuses) if (a.kind == kind) return a;
+        return null;
+    }
     public int score;           // 0~100
     public int level;
     public int totalArticles;   // 중복 제거 후 관련 기사 수

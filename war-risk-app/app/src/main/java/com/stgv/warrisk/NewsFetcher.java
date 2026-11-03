@@ -82,6 +82,13 @@ public class NewsFetcher {
                     "(大使馆 OR 侨民) (撤离 OR 撤侨 OR 关闭) (韩国 OR 首尔 OR 朝鲜 OR 平壤)"),
             new Edition("러시아(대사관)", "러시아", "RU", "ru", "RU", "RU:ru",
                     "посольство (эвакуация OR закрытие OR отзыв) (Сеул OR КНДР OR Пхеньян)"),
+
+            // ── 군 경계태세(데프콘·워치콘·진돗개·통합방위사태) 보도 검색 ──
+            new Edition("한국(경계태세)", "한국", "KO", "ko", "KR", "KR:ko",
+                    "(데프콘 OR 워치콘 OR \"진돗개 하나\" OR \"진돗개 둘\" OR 통합방위사태) "
+                            + "(발령 OR 격상 OR 하향 OR 해제 OR 선포 OR 북한 OR 한미)"),
+            new Edition("미국(DEFCON)", "미국", "EN", "en-US", "US", "US:en",
+                    "(DEFCON OR WATCHCON) (Korea OR Korean OR Pyongyang OR USFK)"),
     };
 
     static final String GDELT_QUERY =

@@ -80,6 +80,18 @@ public class Store {
                 emb.put(j);
             }
             o.put("embassy", emb);
+            JSONArray st = new JSONArray();
+            for (RiskReport.AlertStatus a : r.alertStatuses) {
+                JSONObject j = new JSONObject();
+                j.put("k", a.kind);
+                j.put("v", a.value);
+                j.put("n", a.articles);
+                j.put("m", a.latestMs);
+                j.put("t", a.title);
+                j.put("u", a.url);
+                st.put(j);
+            }
+            o.put("status", st);
             JSONArray sig = new JSONArray();
             for (RiskReport.SignalHit h : r.signals) {
                 JSONObject s = new JSONObject();
@@ -157,6 +169,18 @@ public class Store {
                 e.url = j.optString("u");
                 r.embassyEvents.add(e);
             }
+            JSONArray st = o.optJSONArray("status");
+            if (st != null) for (int i = 0; i < st.length(); i++) {
+                JSONObject j = st.getJSONObject(i);
+                RiskReport.AlertStatus a = new RiskReport.AlertStatus();
+                a.kind = j.optInt("k");
+                a.value = j.optInt("v");
+                a.articles = j.optInt("n");
+                a.latestMs = j.optLong("m");
+                a.title = j.optString("t");
+                a.url = j.optString("u");
+                r.alertStatuses.add(a);
+            }
             JSONArray sig = o.optJSONArray("signals");
             if (sig != null) for (int i = 0; i < sig.length(); i++) {
                 JSONObject h = sig.getJSONObject(i);
@@ -211,5 +235,13 @@ public class Store {
     }
     public static void setNotifiedEmbassy(Context c, Set<String> v) {
         prefs(c).edit().putStringSet("notifiedEmbassy", new HashSet<>(v)).apply();
+    }
+
+    /** 이미 알린 경계태세 격상 보도 (종류|단계). */
+    public static Set<String> notifiedStatus(Context c) {
+        return new HashSet<>(prefs(c).getStringSet("notifiedStatus", new HashSet<>()));
+    }
+    public static void setNotifiedStatus(Context c, Set<String> v) {
+        prefs(c).edit().putStringSet("notifiedStatus", new HashSet<>(v)).apply();
     }
 }

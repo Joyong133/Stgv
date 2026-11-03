@@ -110,7 +110,7 @@ public class RiskEngine {
 
     static final List<Signal> SIGNALS = new ArrayList<>();
     /** 제목 단어가 아니라 EmbassyDetector 판정으로 잡는 신호의 위치. */
-    static final int SIG_EMB_SEOUL, SIG_CITIZEN, SIG_EMB_PY, SIG_EVAC;
+    static final int SIG_EMB_SEOUL, SIG_CITIZEN, SIG_EMB_PY, SIG_EVAC, SIG_ALERT;
 
     static {
         // ── 매우 심각 ────────────────────────────────────────────
@@ -232,9 +232,13 @@ public class RiskEngine {
         SIG_EMB_PY = SIGNALS.size();
         SIGNALS.add(new Signal("대사관 철수(평양)", 15));
 
-        int evac = -1;
-        for (int i = 0; i < SIGNALS.size(); i++) if (SIGNALS.get(i).name.equals("대피령")) evac = i;
+        int evac = -1, alert = -1;
+        for (int i = 0; i < SIGNALS.size(); i++) {
+            if (SIGNALS.get(i).name.equals("대피령")) evac = i;
+            if (SIGNALS.get(i).name.equals("비상경계·동원")) alert = i;
+        }
         SIG_EVAC = evac;
+        SIG_ALERT = alert;
     }
 
     static boolean any(Pattern[] ps, String text) {
@@ -262,7 +266,8 @@ public class RiskEngine {
         for (Article a : raw) {
             if (a.title == null || a.title.trim().isEmpty()) continue;
             if (a.timeMs > 0 && (now - a.timeMs) / 3600000.0 > MAX_AGE_HOURS) continue;
-            if (!any(RELEVANT, a.title) && EmbassyDetector.detect(a.title) == null) continue;
+            if (!any(RELEVANT, a.title) && EmbassyDetector.detect(a.title) == null
+                    && AlertStatusDetector.detect(a.title) == null) continue;
             String key = titleKey(a.title);
             if (key.isEmpty()) continue;
             Article prev = unique.get(key);
@@ -274,6 +279,8 @@ public class RiskEngine {
         Set<String> sources = new HashSet<>();
         Set<String> regions = new HashSet<>();
         Map<String, RiskReport.EmbassyEvent> events = new LinkedHashMap<>();
+        // 경계태세: 종류별 → 단계별 묶음
+        Map<String, RiskReport.AlertStatus> statuses = new LinkedHashMap<>();
 
         for (Article a : unique.values()) {
             double ageH = a.timeMs > 0 ? Math.max(0, (now - a.timeMs) / 3600000.0) : 12.0;
@@ -309,9 +316,31 @@ public class RiskEngine {
                     e.url = a.url;
                 }
             }
+            AlertStatusDetector.Hit hs = AlertStatusDetector.detect(a.title);
+            boolean peacetimeStatus = false;
+            if (hs != null) {
+                a.tags.add("경계태세: " + hs.text());
+                peacetimeStatus = isPeacetime(hs.kind, hs.value);
+                String key = hs.kind + "|" + hs.value;
+                RiskReport.AlertStatus st = statuses.get(key);
+                if (st == null) {
+                    st = new RiskReport.AlertStatus();
+                    st.kind = hs.kind;
+                    st.value = hs.value;
+                    statuses.put(key, st);
+                }
+                st.articles++;
+                if (st.title == null || a.timeMs > st.latestMs) {
+                    st.latestMs = a.timeMs;
+                    st.title = a.title;
+                    st.url = a.url;
+                }
+            }
             for (int i = 0; i < SIGNALS.size(); i++) {
                 Signal s = SIGNALS.get(i);
                 if (s.patterns.length == 0) continue;           // 철수 신호는 위에서 처리
+                // "데프콘 4로 하향"처럼 평시 단계 보도를 '비상경계' 신호로 세지 않음
+                if (peacetimeStatus && i == SIG_ALERT) continue;
                 if (ev != null && i == SIG_EVAC) continue;      // 공관 대피를 '주민 대피령'으로 이중 계산하지 않음
                 if (foreignOnly && s.weight >= 20) continue;
                 if (!s.matches(a.title)) continue;
@@ -343,10 +372,26 @@ public class RiskEngine {
         rep.regionCount = regions.size();
 
         rep.embassyEvents.addAll(events.values());
+        // 종류마다 가장 최근에 보도된 단계를 현재 단계로 본다 ("격상" 뒤 "하향" 보도가 나오면 하향이 이김)
+        for (RiskReport.AlertStatus st : statuses.values()) {
+            RiskReport.AlertStatus cur = rep.alertStatus(st.kind);
+            if (cur == null) rep.alertStatuses.add(st);
+            else if (st.latestMs > cur.latestMs) rep.alertStatuses.set(rep.alertStatuses.indexOf(cur), st);
+        }
         Collections.sort(rep.embassyEvents, (x, y) -> Long.compare(y.latestMs, x.latestMs));
         Collections.sort(rep.signals, (x, y) -> Double.compare(Math.abs(y.contribution), Math.abs(x.contribution)));
         Collections.sort(rep.articles, (x, y) -> Long.compare(y.timeMs, x.timeMs));
         return rep;
+    }
+
+    /** 평시 수준의 경계태세인지 (데프콘·워치콘 4 이상, 진돗개 셋). */
+    static boolean isPeacetime(int kind, int value) {
+        switch (kind) {
+            case AlertStatusDetector.KIND_DEFCON:
+            case AlertStatusDetector.KIND_WATCHCON: return value >= 4;
+            case AlertStatusDetector.KIND_JINDO: return value >= 3;
+            default: return false;
+        }
     }
 
     /** 분석 + 전쟁 가능성 계산. history는 이번 결과 이전의 [시각, 점수] 기록. */

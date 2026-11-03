@@ -11,6 +11,8 @@ import java.util.Map;
  *   z = 기본값 + 0.045×위험지수 + 1.0×(서울 대사관 철수 국가, 최대 3)
  *       + 0.6×(자국민 철수·여행금지 국가, 최대 3) + 0.3×(평양 대사관 철수 국가, 최대 2)
  *       + 0.015×(최근 1~3일 평균 대비 위험지수 상승폭, 최대 40)
+ *       + 보도된 경계태세 (데프콘 3/2/1: 1.0/2.0/3.0, 통합방위사태 갑/을/병: 1.5/0.8/0.3,
+ *         진돗개 하나: 0.4, 워치콘 2/1: 0.3/0.6)
  *   철수 국가는 기사 2건 이상이면 1개국, 1건뿐이면 0.5개국으로 센다 (오보 한 건에 크게 흔들리지 않게).
  *
  * 대략: 평시 0.2% · 미사일 발사 1% · 핵실험+ICBM 4% · 교전+사상자 10~15% · 여기에 여러 나라 대사관 철수까지 겹치면 50% 안팎.
@@ -56,6 +58,15 @@ public class WarOdds {
         z += addCountries(r, "자국민 철수·여행금지", citizen, PER_CITIZEN, 3);
         z += addCountries(r, "평양 대사관 철수", py, PER_PY_EMBASSY, 2);
 
+        // 보도된 경계태세 (기사 1건뿐이면 절반만 반영)
+        for (RiskReport.AlertStatus st : r.alertStatuses) {
+            double add = statusTerm(st.kind, st.value);
+            if (add <= 0) continue;
+            if (st.articles < 2) add *= 0.5;
+            z += add;
+            r.warFactors.add(new RiskReport.OddsFactor(st.text() + " 보도", Math.exp(add)));
+        }
+
         // 최근 24~72시간 전 기록의 평균과 비교해 급상승 여부
         double sum = 0;
         int n = 0;
@@ -78,6 +89,22 @@ public class WarOdds {
 
         double p = 1 / (1 + Math.exp(-z));
         r.warProb = Math.max(MIN_P, Math.min(MAX_P, p));
+    }
+
+    /** 경계태세 단계별 가산값. 데프콘 3은 정전 이후 두 번(1976·1983)뿐이었을 만큼 드문 일이다. */
+    static double statusTerm(int kind, int value) {
+        switch (kind) {
+            case AlertStatusDetector.KIND_DEFCON:
+                return value == 3 ? 1.0 : value == 2 ? 2.0 : value == 1 ? 3.0 : 0;
+            case AlertStatusDetector.KIND_WATCHCON:
+                return value == 2 ? 0.3 : value == 1 ? 0.6 : 0;
+            case AlertStatusDetector.KIND_JINDO:
+                return value == 1 ? 0.4 : 0;
+            case AlertStatusDetector.KIND_DEFENSE:
+                return value == 1 ? 1.5 : value == 2 ? 0.8 : 0.3;
+            default:
+                return 0;
+        }
     }
 
     static double addCountries(RiskReport r, String name, Map<String, Integer> m, double per, double cap) {

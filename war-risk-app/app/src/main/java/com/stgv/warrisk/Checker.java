@@ -23,6 +23,7 @@ public class Checker {
     static final String CHANNEL = "risk_alerts";
     static final int NOTIF_ID = 1;
     static final int NOTIF_EMBASSY_ID = 2;
+    static final int NOTIF_STATUS_ID = 3;
 
     /**
      * 뉴스를 가져와 분석하고 저장한다. 모든 수집이 실패하면 이전 결과를 지우지 않고 null을 돌려준다.
@@ -35,6 +36,7 @@ public class Checker {
         if (notify) {
             maybeNotify(c, r);
             maybeNotifyEmbassy(c, r);
+            maybeNotifyStatus(c, r);
         }
         return r;
     }
@@ -94,6 +96,33 @@ public class Checker {
         String text = sb + (first != null ? "\n\n“" + first + "”" : "")
                 + "\n전쟁 가능성(30일) " + WarOdds.percent(r.warProb);
         post(c, NOTIF_EMBASSY_ID, "대사관·자국민 철수 소식 " + fresh.size() + "건", text);
+    }
+
+    /** 데프콘 3 이하, 진돗개 하나, 통합방위사태 등 평시보다 높은 경계태세가 새로 보도되면 알린다. */
+    static void maybeNotifyStatus(Context c, RiskReport r) {
+        Set<String> current = new HashSet<>();
+        List<RiskReport.AlertStatus> raised = new ArrayList<>();
+        for (RiskReport.AlertStatus st : r.alertStatuses) {
+            if (RiskEngine.isPeacetime(st.kind, st.value)) continue;
+            current.add(st.kind + "|" + st.value);
+            raised.add(st);
+        }
+        Set<String> seen = Store.notifiedStatus(c);
+        Store.setNotifiedStatus(c, current);
+        if (!Store.embassyAlert(c)) return;
+        List<RiskReport.AlertStatus> fresh = new ArrayList<>();
+        for (RiskReport.AlertStatus st : raised) if (!seen.contains(st.kind + "|" + st.value)) fresh.add(st);
+        if (fresh.isEmpty()) return;
+
+        StringBuilder head = new StringBuilder();
+        for (RiskReport.AlertStatus st : fresh) {
+            if (head.length() > 0) head.append(", ");
+            head.append(st.text());
+        }
+        RiskReport.AlertStatus first = fresh.get(0);
+        String text = (first.title != null ? "“" + first.title + "”\n" : "")
+                + "기사 " + first.articles + "건 · 전쟁 가능성(30일) " + WarOdds.percent(r.warProb);
+        post(c, NOTIF_STATUS_ID, "경계태세 격상 보도: " + head, text);
     }
 
     static void post(Context c, int id, String title, String text) {

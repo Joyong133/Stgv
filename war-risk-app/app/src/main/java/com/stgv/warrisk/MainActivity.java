@@ -33,9 +33,10 @@ public class MainActivity extends Activity {
 
     private GaugeView gauge;
     private TextView level, score, desc, meta, errors, refresh, interval, alertLevel, autoNote,
-            articlesTitle, filter, sort, empty, trendRange, warProb, warIntuitive, embassyTitle;
+            articlesTitle, filter, sort, empty, trendRange, warProb, warIntuitive, embassyTitle,
+            defconValue, defconSource;
     private ProgressBar progress;
-    private LinearLayout signals, warFactors, embassy;
+    private LinearLayout signals, warFactors, embassy, defconScale, statusRows;
     private TrendView trend;
     private ProbBarView warBar;
     private Switch auto, embassyAlert;
@@ -86,6 +87,10 @@ public class MainActivity extends Activity {
         embassy = header.findViewById(R.id.embassy);
         embassyTitle = header.findViewById(R.id.embassyTitle);
         embassyAlert = header.findViewById(R.id.embassyAlert);
+        defconScale = header.findViewById(R.id.defconScale);
+        defconValue = header.findViewById(R.id.defconValue);
+        defconSource = header.findViewById(R.id.defconSource);
+        statusRows = header.findViewById(R.id.statusRows);
 
         embassyAlert.setChecked(Store.embassyAlert(this));
         embassyAlert.setOnCheckedChangeListener((b, on) -> {
@@ -189,6 +194,7 @@ public class MainActivity extends Activity {
     private void render() {
         trend.setPoints(Store.loadHistory(this));
         renderTrendRange();
+        renderDefcon();
         if (report == null) {
             gauge.setScore(-1);
             warBar.setProbability(-1);
@@ -214,6 +220,83 @@ public class MainActivity extends Activity {
         renderEmbassy();
         renderSignals();
         renderArticles();
+    }
+
+    /** 데프콘 5~1 색: 5 회색, 4 파랑(평시), 3 노랑, 2 주황, 1 빨강. */
+    static final int[] DEFCON_COLORS = {0, 0xFFE53935, 0xFFFB8C00, 0xFFFDD835, 0xFF42A5F5, 0xFF78909C};
+
+    private void renderDefcon() {
+        float d = getResources().getDisplayMetrics().density;
+        RiskReport.AlertStatus dc = report == null ? null : report.alertStatus(AlertStatusDetector.KIND_DEFCON);
+        int level = dc != null ? dc.value : 4;
+
+        defconScale.removeAllViews();
+        for (int v = 5; v >= 1; v--) {
+            TextView box = new TextView(this);
+            box.setText(String.valueOf(v));
+            box.setGravity(Gravity.CENTER);
+            box.setTextSize(TypedValue.COMPLEX_UNIT_SP, v == level ? 20 : 15);
+            box.setTypeface(null, android.graphics.Typeface.BOLD);
+            boolean cur = v == level;
+            box.setTextColor(cur ? 0xFF101418 : 0xFF9AA4AF);
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setCornerRadius(8 * d);
+            if (cur) {
+                bg.setColor(DEFCON_COLORS[v]);
+            } else {
+                bg.setColor(0x00000000);
+                bg.setStroke((int) (1.5f * d), (DEFCON_COLORS[v] & 0x00FFFFFF) | 0x66000000);
+            }
+            box.setBackground(bg);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, (int) ((cur ? 46 : 38) * d), 1);
+            lp.gravity = Gravity.CENTER_VERTICAL;
+            lp.setMarginStart((int) (3 * d));
+            lp.setMarginEnd((int) (3 * d));
+            defconScale.addView(box, lp);
+        }
+
+        defconValue.setText("데프콘 " + level);
+        defconValue.setTextColor(DEFCON_COLORS[level]);
+        if (dc == null) {
+            defconSource.setText("평시 기본값 · 최근 72시간 동안 데프콘 단계 보도 없음");
+            defconSource.setOnClickListener(null);
+        } else {
+            defconSource.setText("뉴스 보도 기준 · 기사 " + dc.articles + "건 · " + timeAgo(dc.latestMs)
+                    + (dc.articles < 2 ? " · 아직 1건뿐이라 확인 필요" : "")
+                    + (dc.title != null ? "\n“" + dc.title + "” (누르면 기사 열기)" : ""));
+            final String url = dc.url;
+            defconSource.setOnClickListener(v -> openUrl(url));
+        }
+
+        statusRows.removeAllViews();
+        int[] kinds = {AlertStatusDetector.KIND_JINDO, AlertStatusDetector.KIND_DEFENSE,
+                AlertStatusDetector.KIND_WATCHCON};
+        String[] defaults = {"셋 (평시 기본값)", "선포 없음", "보도 없음"};
+        String[] names = {"진돗개", "통합방위사태", "워치콘"};
+        for (int i = 0; i < kinds.length; i++) {
+            RiskReport.AlertStatus st = report == null ? null : report.alertStatus(kinds[i]);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, (int) (4 * d), 0, (int) (4 * d));
+            TextView name = smallText(names[i], 0xFF9AA4AF);
+            name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            row.addView(name, new LinearLayout.LayoutParams((int) (100 * d), ViewGroup.LayoutParams.WRAP_CONTENT));
+            String val;
+            int color;
+            if (st == null) {
+                val = defaults[i];
+                color = 0xFFECEFF1;
+            } else {
+                val = st.text() + " · 기사 " + st.articles + "건 · " + timeAgo(st.latestMs);
+                color = RiskEngine.isPeacetime(st.kind, st.value) ? 0xFFECEFF1 : GaugeView.LEVEL_COLORS[2];
+                final String url = st.url;
+                row.setOnClickListener(v -> openUrl(url));
+            }
+            TextView value = smallText(val, color);
+            value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            row.addView(value, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            statusRows.addView(row);
+        }
     }
 
     private void renderWar() {

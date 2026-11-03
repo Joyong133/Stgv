@@ -28,7 +28,7 @@ javac -encoding UTF-8 -source 8 -target 8 -nowarn -Xlint:-options \
 
 # 4) 정렬 · 서명
 zipalign -f -p 4 "$OUT/app.unsigned.apk" "$OUT/app.aligned.apk"
-apksigner sign --ks debug.keystore --ks-pass pass:android --ks-key-alias neomgim --key-pass pass:android \
+apksigner sign --v4-signing-enabled false --ks debug.keystore --ks-pass pass:android --ks-key-alias neomgim --key-pass pass:android \
   --out "$APK" "$OUT/app.aligned.apk"
 apksigner verify "$APK"
 echo "완성: android/$APK ($(du -h "$APK" | cut -f1))"

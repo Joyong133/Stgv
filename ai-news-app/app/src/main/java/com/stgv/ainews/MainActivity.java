@@ -224,7 +224,7 @@ public class MainActivity extends Activity {
         list.setPadding(0, dp(2), 0, dp(24));
         adapter = new Adapter();
         list.setAdapter(adapter);
-        list.setOnItemClickListener((p, v, pos, id) -> open(shown.get(pos).url));
+        list.setOnItemClickListener((p, v, pos, id) -> read(shown.get(pos)));
         list.setOnItemLongClickListener((p, v, pos, id) -> {
             itemMenu(shown.get(pos));
             return true;
@@ -352,6 +352,11 @@ public class MainActivity extends Activity {
     }
 
     // ── 동작 ─────────────────────────────────────────────────────────
+    /** 기사를 앱 안 화면에서 연다. */
+    private void read(NewsItem n) {
+        startActivity(ArticleActivity.intent(this, n.url, n.title));
+    }
+
     private void open(String url) {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
@@ -362,15 +367,18 @@ public class MainActivity extends Activity {
 
     private void itemMenu(NewsItem n) {
         String[] actions = "EN".equals(n.lang)
-                ? new String[]{"브라우저로 열기", "제목 번역 (Google 번역)", "공유", "링크 복사"}
-                : new String[]{"브라우저로 열기", "공유", "링크 복사"};
+                ? new String[]{"앱에서 보기", "브라우저로 열기", "제목 번역 (Google 번역)", "공유", "링크 복사"}
+                : new String[]{"앱에서 보기", "브라우저로 열기", "공유", "링크 복사"};
         new AlertDialog.Builder(this)
                 .setTitle(n.title)
                 .setItems(actions, (d, which) -> {
                     String a = actions[which];
-                    if (a.startsWith("브라우저")) open(n.url);
+                    if (a.startsWith("앱에서")) read(n);
+                    else if (a.startsWith("브라우저")) open(n.url);
                     else if (a.startsWith("제목 번역")) {
-                        open("https://translate.google.com/?sl=auto&tl=ko&op=translate&text=" + Uri.encode(n.title));
+                        startActivity(ArticleActivity.intent(this,
+                                "https://translate.google.com/?sl=auto&tl=ko&op=translate&text=" + Uri.encode(n.title),
+                                "번역: " + n.title));
                     } else if (a.equals("공유")) {
                         Intent send = new Intent(Intent.ACTION_SEND)
                                 .setType("text/plain")

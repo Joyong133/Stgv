@@ -27,6 +27,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ArticleActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" />
+
         <service
             android:name=".NewsJobService"
             android:exported="false"

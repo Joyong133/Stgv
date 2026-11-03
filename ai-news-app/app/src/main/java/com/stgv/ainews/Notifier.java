@@ -7,7 +7,6 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 
 import java.util.ArrayList;
@@ -56,8 +55,12 @@ public class Notifier {
         int shown = Math.min(3, fresh.size());
         for (int i = 0; i < shown; i++) {
             NewsItem n = fresh.get(i);
-            Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(n.url));
-            PendingIntent pi = PendingIntent.getActivity(c, n.key().hashCode(), open,
+            // 기사 화면에서 뒤로 가면 소식 목록으로 돌아가도록 목록 화면을 밑에 깐다
+            Intent[] stack = {
+                    new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    ArticleActivity.intent(c, n.url, n.title)
+            };
+            PendingIntent pi = PendingIntent.getActivities(c, n.key().hashCode(), stack,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             String who = MainActivity.companyNames(n.companies);
             Notification.Builder b = new Notification.Builder(c, CHANNEL)

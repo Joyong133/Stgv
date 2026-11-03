@@ -207,8 +207,10 @@ public class MainActivity extends Activity {
         level.setTextColor(color);
         score.setText(report.score + " / 100");
         desc.setText(RiskReport.LEVEL_DESC[report.level]);
-        meta.setText(String.format(Locale.KOREA, "%s 확인 · 기사 %d건 (위험 신호 %d건) · 언론사 %d곳 · %d개 지역",
-                timeAgo(report.checkedAt), report.totalArticles, report.riskyArticles,
+        meta.setText(String.format(Locale.KOREA,
+                "%s 확인 · 기사 %d건 → 같은 내용을 묶어 사건 %d개 (위험 신호 %d개) · 언론사 %d곳 · %d개 지역",
+                timeAgo(report.checkedAt), report.totalArticles,
+                report.storyCount > 0 ? report.storyCount : report.totalArticles, report.riskyArticles,
                 report.sourceCount, report.regionCount));
         if (report.errors.isEmpty()) {
             errors.setVisibility(View.GONE);
@@ -374,7 +376,7 @@ public class MainActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(0, (int) (5 * d), 0, (int) (5 * d));
 
-            TextView name = smallText(h.name + "  " + h.articles + "건", 0xFFECEFF1);
+            TextView name = smallText(h.name + "  " + h.articles + "개", 0xFFECEFF1);
             name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             row.addView(name, new LinearLayout.LayoutParams((int) (130 * d), ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -397,7 +399,8 @@ public class MainActivity extends Activity {
             row.addView(pts, new LinearLayout.LayoutParams((int) (52 * d), ViewGroup.LayoutParams.WRAP_CONTENT));
             signals.addView(row);
         }
-        signals.addView(smallText("막대 길이 = 지수에 더해진 점수. 여러 언론이 함께 보도할수록 커지고, 초록색(회담·대화)은 점수를 깎습니다.",
+        signals.addView(smallText("숫자 = 그 신호가 잡힌 사건 수 (같은 내용을 여러 언론사가 보도해도 1개). 막대 길이 = 지수에 더해진 점수. "
+                        + "한 곳만 보도한 사건은 60%만 반영하고, 초록색(회담·대화)은 점수를 깎습니다.",
                 0xFF9AA4AF));
     }
 
@@ -458,10 +461,10 @@ public class MainActivity extends Activity {
         }
         if (bySev) {
             Collections.sort(items, (x, y) -> x.score != y.score
-                    ? Integer.compare(y.score, x.score) : Long.compare(y.timeMs, x.timeMs));
+                    ? Integer.compare(y.score, x.score) : Long.compare(y.storyStart, x.storyStart));
         }
         adapter.set(items);
-        articlesTitle.setText("수집된 기사 " + items.size() + "건");
+        articlesTitle.setText("사건 " + items.size() + "개 (같은 내용 보도는 하나로 묶음)");
         if (items.isEmpty()) {
             empty.setVisibility(View.VISIBLE);
             empty.setText(report == null ? "확인 중이거나 아직 결과가 없습니다." : "표시할 기사가 없습니다.");
@@ -530,8 +533,18 @@ public class MainActivity extends Activity {
             }
             if (a.lang != null && !a.lang.isEmpty()) m.append(" ").append(a.lang);
             if (m.length() > 0) m.append(" · ");
-            m.append(timeAgo(a.timeMs));
+            m.append(a.storyStart > 0 && a.dupCount > 0 ? "첫 보도 " + timeAgo(a.storyStart) : timeAgo(a.timeMs));
             ((TextView) v.findViewById(R.id.meta)).setText(m);
+
+            TextView dups = v.findViewById(R.id.dups);
+            if (a.dupCount > 0) {
+                dups.setVisibility(View.VISIBLE);
+                dups.setText("같은 내용 " + a.dupCount + "건 더 보도"
+                        + (a.otherOutlets != null ? ": " + a.otherOutlets : "") + " (점수엔 1번만 반영)");
+            } else {
+                dups.setVisibility(View.VISIBLE);
+                dups.setText("한 곳만 보도 · 점수에 60%만 반영");
+            }
 
             int c = colorForArticle(a.score);
             v.findViewById(R.id.bar).setBackgroundColor(c);

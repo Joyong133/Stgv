@@ -16,11 +16,14 @@ import java.util.regex.Pattern;
  *
  * 계산 방식
  *  1. 북한/한반도와 관련 없는 기사는 버린다.
- *  2. 같은 내용의 기사(제목이 거의 같은 기사)는 하나로 합친다.
- *  3. 신호(예: "포격")마다 그 신호가 잡힌 기사들의 최신도 가중치를 더해 '보도 강도'를 구한다.
- *     최신도 가중치는 기사 나이가 18시간 지날 때마다 약 1/e로 줄어든다. 72시간 넘은 기사는 버린다.
- *  4. 신호 점수 = 가중치 × (1 − e^(−보도강도/1.5)). 기사 1건이면 절반쯤, 3~4건 이상이면 거의 전부 반영된다.
- *     한두 건의 자극적인 기사보다 여러 언론이 함께 보도하는 사건이 더 크게 반영된다.
+ *  2. 같은 내용을 보도한 기사는 언론사가 달라도 하나의 '사건'으로 묶는다.
+ *     - 같은 핵심 신호(예: 미사일 발사)를 담은 기사가 첫 보도 후 12시간 안에 나오면 같은 사건 (언어 무관)
+ *     - 제목 단어가 60% 이상 겹치는 기사가 첫 보도 후 36시간 안에 나오면 같은 사건
+ *  3. 신호(예: "포격")마다 그 신호가 잡힌 '사건'들의 최신도 가중치를 더해 보도 강도를 구한다.
+ *     같은 사건을 보도한 언론사가 많아도 한 번만 센다. 최신도는 첫 보도 시각 기준으로,
+ *     18시간 지날 때마다 약 1/e로 줄어든다. 72시간 넘은 기사는 버린다.
+ *     단, 딱 한 곳만 보도한 사건은 오보 가능성이 있어 60%만 반영한다 (두 곳 이상이면 몇 곳이든 100%).
+ *  4. 신호 점수 = 가중치 × (1 − e^(−보도강도/0.5)). 막 일어난 사건 1개면 약 85%, 2개 이상이면 거의 전부 반영.
  *  5. 위험 신호 합 − 완화 신호(회담·대화) 합 = 원점수, 지수 = 100 × (1 − e^(−원점수/45)).
  *
  * 북한군의 러시아 파병처럼 '다른 전쟁' 기사는 사상자·교전 같은 단어가 많지만 한반도 위험과는 다르므로,
@@ -32,7 +35,8 @@ public class RiskEngine {
 
     static final double RECENCY_HOURS = 18.0;
     static final double MAX_AGE_HOURS = 72.0;
-    static final double SATURATION = 1.5;
+    static final double SATURATION = 0.5;
+    static final double SINGLE_SOURCE = 0.6;
     static final double SCALE = 45.0;
 
     /** 여러 언어의 표현을 하나로 묶은 신호. */
@@ -257,11 +261,84 @@ public class RiskEngine {
         return sb.toString();
     }
 
+    /** 기사 한 건의 분석 결과 (사건으로 묶기 전). */
+    static class Info {
+        Article a;
+        long time;                                   // 시각 모르면 12시간 전으로 간주
+        List<Integer> sigs = new ArrayList<>();      // 잡힌 신호 위치
+        String eventKey;                             // 같은 사건 판단용 핵심 신호 (없으면 null)
+        Set<String> tokens;                          // 제목 유사도 비교용 단어
+    }
+
+    /** 사건 하나 = 같은 내용을 보도한 기사 묶음. */
+    static class Story {
+        List<Info> members = new ArrayList<>();
+        long start;                                  // 첫 보도 시각
+        Set<String> eventKeys = new HashSet<>();     // 대사관(나라별)·경계태세 소식 키
+        Set<Integer> strong = new HashSet<>();       // 묶인 기사들의 주요 신호 (가중치 8 이상)
+    }
+
+    /** 사건 묶기에 쓰는 주요 신호인지: |가중치| 8 이상, 대사관 신호 제외(나라가 다르면 다른 소식). */
+    static boolean isStrong(int i) {
+        Signal s = SIGNALS.get(i);
+        return s.patterns.length > 0 && Math.abs(s.weight) >= 8;
+    }
+
+    static final long SAME_EVENT_MS = 12 * 3600000L;   // 주요 신호를 공유하면 첫 보도 후 12시간 안은 같은 사건
+    static final long SAME_TITLE_MS = 36 * 3600000L;   // 제목이 비슷하면 36시간 안은 같은 사건
+    static final double TITLE_OVERLAP = 0.6;
+
+    /** 어느 기사에나 나오는 단어 (유사도 계산에서 제외). */
+    static final Set<String> STOP = new HashSet<>(java.util.Arrays.asList(
+            "north", "south", "korea", "korean", "koreas", "the", "and", "for", "with", "after", "amid", "over",
+            "from", "into", "its", "has", "have", "had", "will", "new", "says", "said", "say", "report", "reports",
+            "news", "update", "live", "latest", "what", "why", "how", "this", "that", "are", "was", "were",
+            "북한", "한국", "남북", "北朝", "朝鮮", "朝鲜", "韩国", "韓国", "кндр", "коре", "nordkorea", "corée",
+            "nord", "corea", "norte", "sud", "des", "les", "der", "die", "das", "und", "del", "los", "las", "для"));
+
+    static Set<String> tokens(String title) {
+        Set<String> out = new HashSet<>();
+        String t = title.toLowerCase(Locale.ROOT);
+        StringBuilder word = new StringBuilder();
+        StringBuilder cjk = new StringBuilder();
+        for (int i = 0; i <= t.length(); i++) {
+            char c = i < t.length() ? t.charAt(i) : ' ';
+            boolean isCjk = i < t.length() && hasCjk(String.valueOf(c));
+            if (isCjk) {
+                cjk.append(c);
+            } else if (cjk.length() > 0) {
+                if (cjk.length() == 1) addToken(out, cjk.toString());
+                for (int k = 0; k + 1 < cjk.length(); k++) addToken(out, cjk.substring(k, k + 2));
+                cjk.setLength(0);
+            }
+            if (!isCjk && Character.isLetterOrDigit(c)) {
+                word.append(c);
+            } else if (word.length() > 0) {
+                if (word.length() >= 3 || Character.isDigit(word.charAt(0))) addToken(out, word.toString());
+                word.setLength(0);
+            }
+        }
+        return out;
+    }
+
+    static void addToken(Set<String> out, String tok) {
+        if (!STOP.contains(tok)) out.add(tok);
+    }
+
+    /** 두 제목의 단어 겹침 비율 (작은 쪽 기준). 3단어 이상 겹쳐야 의미 있게 본다. */
+    static double overlap(Set<String> x, Set<String> y) {
+        if (x.size() < 3 || y.size() < 3) return 0;
+        int inter = 0;
+        for (String s : x) if (y.contains(s)) inter++;
+        if (inter < 3) return 0;
+        return inter / (double) Math.min(x.size(), y.size());
+    }
+
     public static RiskReport analyze(List<Article> raw, long now) {
         RiskReport rep = new RiskReport();
         rep.checkedAt = now;
 
-        // 1~2. 관련성 필터 + 중복 제거 (더 최신 기사를 남김)
+        // 1. 관련성 필터 + 제목이 똑같은 기사 제거
         Map<String, Article> unique = new LinkedHashMap<>();
         for (Article a : raw) {
             if (a.title == null || a.title.trim().isEmpty()) continue;
@@ -271,36 +348,32 @@ public class RiskEngine {
             String key = titleKey(a.title);
             if (key.isEmpty()) continue;
             Article prev = unique.get(key);
-            if (prev == null || a.timeMs > prev.timeMs) unique.put(key, a);
+            if (prev == null || a.timeMs < prev.timeMs) unique.put(key, a);
         }
 
-        double[] support = new double[SIGNALS.size()];
-        int[] count = new int[SIGNALS.size()];
         Set<String> sources = new HashSet<>();
         Set<String> regions = new HashSet<>();
         Map<String, RiskReport.EmbassyEvent> events = new LinkedHashMap<>();
-        // 경계태세: 종류별 → 단계별 묶음
-        Map<String, RiskReport.AlertStatus> statuses = new LinkedHashMap<>();
+        Map<String, RiskReport.AlertStatus> statuses = new LinkedHashMap<>(); // 종류|단계 → 묶음
+        List<Info> infos = new ArrayList<>();
 
+        // 2. 기사마다 신호 찾기
         for (Article a : unique.values()) {
-            double ageH = a.timeMs > 0 ? Math.max(0, (now - a.timeMs) / 3600000.0) : 12.0;
-            double w = Math.exp(-ageH / RECENCY_HOURS);
+            Info in = new Info();
+            in.a = a;
+            in.time = a.timeMs > 0 ? a.timeMs : now - 12 * 3600000L;
+            in.tokens = tokens(a.title);
             boolean foreignOnly = any(FOREIGN_WAR, a.title) && !any(PENINSULA, a.title);
 
-            a.score = 0;
-            a.tags = new ArrayList<>();
             a.embassy = null;
             EmbassyDetector.Event ev = foreignOnly ? null : EmbassyDetector.detect(a.title);
             if (ev != null) {
                 int idx = ev.type == EmbassyDetector.TYPE_CITIZEN ? SIG_CITIZEN
                         : EmbassyDetector.LOC_SEOUL.equals(ev.location) ? SIG_EMB_SEOUL : SIG_EMB_PY;
-                support[idx] += w;
-                count[idx]++;
-                a.tags.add(SIGNALS.get(idx).name);
-                a.score += SIGNALS.get(idx).weight;
+                in.sigs.add(idx);
                 a.embassy = ev.country + " · " + ev.label();
-
                 String key = ev.type + "|" + ev.location + "|" + ev.country;
+                in.eventKey = "E|" + key;
                 RiskReport.EmbassyEvent e = events.get(key);
                 if (e == null) {
                     e = new RiskReport.EmbassyEvent();
@@ -318,10 +391,12 @@ public class RiskEngine {
             }
             AlertStatusDetector.Hit hs = AlertStatusDetector.detect(a.title);
             boolean peacetimeStatus = false;
+            String statusTag = null;
             if (hs != null) {
-                a.tags.add("경계태세: " + hs.text());
+                statusTag = "경계태세: " + hs.text();
                 peacetimeStatus = isPeacetime(hs.kind, hs.value);
                 String key = hs.kind + "|" + hs.value;
+                if (in.eventKey == null) in.eventKey = "S|" + key;
                 RiskReport.AlertStatus st = statuses.get(key);
                 if (st == null) {
                     st = new RiskReport.AlertStatus();
@@ -336,6 +411,7 @@ public class RiskEngine {
                     st.url = a.url;
                 }
             }
+            int best = -1;
             for (int i = 0; i < SIGNALS.size(); i++) {
                 Signal s = SIGNALS.get(i);
                 if (s.patterns.length == 0) continue;           // 철수 신호는 위에서 처리
@@ -344,15 +420,125 @@ public class RiskEngine {
                 if (ev != null && i == SIG_EVAC) continue;      // 공관 대피를 '주민 대피령'으로 이중 계산하지 않음
                 if (foreignOnly && s.weight >= 20) continue;
                 if (!s.matches(a.title)) continue;
-                support[i] += w;
-                count[i]++;
-                a.tags.add(s.name);
-                a.score += s.weight;
+                in.sigs.add(i);
+                // 핵심 신호: 가장 무거운 위험 신호 (가중치 6 미만의 '긴장 고조'는 너무 흔해서 제외).
+                // 위험 신호가 없으면 가장 강한 완화 신호(회담 등).
+                if (Math.abs(s.weight) >= 4) {
+                    if (best < 0) best = i;
+                    else {
+                        int bw = SIGNALS.get(best).weight;
+                        if ((s.weight > 0 && bw < 0) || (Integer.signum(s.weight) == Integer.signum(bw)
+                                && Math.abs(s.weight) > Math.abs(bw))) best = i;
+                    }
+                }
             }
-            if (a.score > 0) rep.riskyArticles++;
+            if (best >= 0 && SIGNALS.get(best).weight > 0 && SIGNALS.get(best).weight < 6) best = -1;
+            if (in.eventKey == null && best >= 0) in.eventKey = "G|" + best;
+            a.tags = new ArrayList<>();
+            if (statusTag != null) a.tags.add(statusTag);
             if (a.source != null && !a.source.isEmpty()) sources.add(a.source.toLowerCase(Locale.ROOT));
             if (a.region != null && !a.region.isEmpty()) regions.add(a.region);
-            rep.articles.add(a);
+            infos.add(in);
+        }
+
+        // 3. 같은 내용을 보도한 기사를 하나의 사건으로 묶기 (시간순)
+        Collections.sort(infos, (x, y) -> Long.compare(x.time, y.time));
+        List<Story> stories = new ArrayList<>();
+        for (Info in : infos) {
+            Story match = null;
+            for (Story st : stories) {
+                long dt = in.time - st.start;
+                if (dt <= SAME_EVENT_MS && sharesEvent(in, st)) {
+                    match = st;
+                    break;
+                }
+                if (dt <= SAME_TITLE_MS) {
+                    for (Info m : st.members) {
+                        if (overlap(in.tokens, m.tokens) >= TITLE_OVERLAP) {
+                            match = st;
+                            break;
+                        }
+                    }
+                    if (match != null) break;
+                }
+            }
+            if (match == null) {
+                match = new Story();
+                match.start = in.time;
+                stories.add(match);
+            }
+            if (in.eventKey != null && !in.eventKey.startsWith("G|")) match.eventKeys.add(in.eventKey);
+            for (int i : in.sigs) if (isStrong(i)) match.strong.add(i);
+            match.members.add(in);
+        }
+
+        // 3-2. 들어온 순서 때문에 갈라진 같은 사건 합치기 (12시간 안 + 주요 신호 공유)
+        boolean merged = true;
+        while (merged) {
+            merged = false;
+            outer:
+            for (int i = 0; i < stories.size(); i++) {
+                for (int j = i + 1; j < stories.size(); j++) {
+                    Story x = stories.get(i), y = stories.get(j);
+                    if (Math.abs(x.start - y.start) > SAME_EVENT_MS || !canMerge(x, y)) continue;
+                    x.members.addAll(y.members);
+                    x.start = Math.min(x.start, y.start);
+                    x.eventKeys.addAll(y.eventKeys);
+                    x.strong.addAll(y.strong);
+                    Collections.sort(x.members, (p1, p2) -> Long.compare(p1.time, p2.time));
+                    stories.remove(j);
+                    merged = true;
+                    break outer;
+                }
+            }
+        }
+
+        // 4. 사건 단위로 신호 세기 (같은 사건을 여러 언론사가 보도해도 한 번만)
+        double[] support = new double[SIGNALS.size()];
+        int[] count = new int[SIGNALS.size()];
+        for (Story st : stories) {
+            double ageH = Math.max(0, (now - st.start) / 3600000.0);
+            double w = Math.exp(-ageH / RECENCY_HOURS);
+            // 딱 한 곳만 보도한 사건은 오보 가능성이 있어 60%만 반영 (두 곳 이상이면 몇 곳이든 100%)
+            Set<String> outletSet = new HashSet<>();
+            for (Info m : st.members) {
+                outletSet.add(m.a.source == null || m.a.source.isEmpty() ? m.a.url : m.a.source.toLowerCase(Locale.ROOT));
+            }
+            if (outletSet.size() < 2) w *= SINGLE_SOURCE;
+            java.util.TreeSet<Integer> sigs = new java.util.TreeSet<>();
+            for (Info m : st.members) sigs.addAll(m.sigs);
+
+            // 대표 기사: 한국어 기사가 있으면 그것, 없으면 첫 보도
+            Info rep0 = st.members.get(0);
+            for (Info m : st.members) {
+                if ("KO".equals(m.a.lang)) {
+                    rep0 = m;
+                    break;
+                }
+            }
+            Article ra = rep0.a;
+            ra.score = 0;
+            ra.dupCount = st.members.size() - 1;
+            List<String> outlets = new ArrayList<>();
+            for (Info m : st.members) {
+                if (m == rep0 || m.a.source == null || m.a.source.isEmpty()) continue;
+                if (!outlets.contains(m.a.source)) outlets.add(m.a.source);
+            }
+            ra.otherOutlets = outlets.isEmpty() ? null : joinLimited(outlets, 4);
+            ra.storyStart = st.start;
+            for (Info m : st.members) {
+                if (m == rep0) continue;
+                for (String t : m.a.tags) if (!ra.tags.contains(t)) ra.tags.add(t);
+                if (ra.embassy == null) ra.embassy = m.a.embassy;
+            }
+            for (int i : sigs) {
+                support[i] += w;
+                count[i]++;
+                ra.tags.add(SIGNALS.get(i).name);
+                ra.score += SIGNALS.get(i).weight;
+            }
+            if (ra.score > 0) rep.riskyArticles++;
+            rep.articles.add(ra);
         }
 
         double positive = 0, negative = 0;
@@ -367,7 +553,8 @@ public class RiskEngine {
         double rawScore = positive - Math.min(negative, positive * 0.5);
         rep.score = (int) Math.round(100 * (1 - Math.exp(-Math.max(0, rawScore) / SCALE)));
         rep.level = RiskReport.levelFor(rep.score);
-        rep.totalArticles = rep.articles.size();
+        rep.totalArticles = infos.size();
+        rep.storyCount = stories.size();
         rep.sourceCount = sources.size();
         rep.regionCount = regions.size();
 
@@ -380,8 +567,46 @@ public class RiskEngine {
         }
         Collections.sort(rep.embassyEvents, (x, y) -> Long.compare(y.latestMs, x.latestMs));
         Collections.sort(rep.signals, (x, y) -> Double.compare(Math.abs(y.contribution), Math.abs(x.contribution)));
-        Collections.sort(rep.articles, (x, y) -> Long.compare(y.timeMs, x.timeMs));
+        Collections.sort(rep.articles, (x, y) -> Long.compare(y.storyStart, x.storyStart));
         return rep;
+    }
+
+    /** 기사가 이 사건과 같은 소식인지: 같은 대사관·경계태세 소식이거나, 주요 위험 신호를 하나라도 공유. */
+    static boolean sharesEvent(Info in, Story st) {
+        if (in.eventKey != null && in.eventKey.startsWith("E|")) {
+            // 대사관 소식은 같은 나라·장소·유형끼리만
+            return st.eventKeys.contains(in.eventKey);
+        }
+        if (in.eventKey != null && st.eventKeys.contains(in.eventKey)) return true;
+        for (int i : in.sigs) if (isStrong(i) && st.strong.contains(i)) return true;
+        return false;
+    }
+
+    /** 두 사건을 합칠 수 있는지: 대사관 소식은 같은 나라끼리만, 나머지는 주요 신호 공유. */
+    static boolean canMerge(Story x, Story y) {
+        boolean xe = hasEmbassyKey(x), ye = hasEmbassyKey(y);
+        if (xe || ye) {
+            for (String k : x.eventKeys) if (k.startsWith("E|") && y.eventKeys.contains(k)) return true;
+            return false;
+        }
+        for (String k : x.eventKeys) if (y.eventKeys.contains(k)) return true;
+        for (int i : x.strong) if (y.strong.contains(i)) return true;
+        return false;
+    }
+
+    static boolean hasEmbassyKey(Story s) {
+        for (String k : s.eventKeys) if (k.startsWith("E|")) return true;
+        return false;
+    }
+
+    static String joinLimited(List<String> items, int max) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < items.size() && i < max; i++) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(items.get(i));
+        }
+        if (items.size() > max) sb.append(" 외 ").append(items.size() - max).append("곳");
+        return sb.toString();
     }
 
     /** 평시 수준의 경계태세인지 (데프콘·워치콘 4 이상, 진돗개 셋). */

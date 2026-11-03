@@ -21,7 +21,7 @@ public class RiskReport {
     public static class SignalHit {
         public String name;
         public int weight;          // 신호 기본 가중치 (음수면 완화 신호)
-        public int articles;        // 이 신호가 잡힌 기사 수
+        public int articles;        // 이 신호가 잡힌 사건 수 (같은 내용 다른 언론사는 한 번만)
         public double contribution; // 지수에 실제로 더해진 점수
 
         public SignalHit(String name, int weight, int articles, double contribution) {
@@ -85,8 +85,9 @@ public class RiskReport {
     }
     public int score;           // 0~100
     public int level;
-    public int totalArticles;   // 중복 제거 후 관련 기사 수
-    public int riskyArticles;   // 위험 신호가 하나라도 잡힌 기사 수
+    public int totalArticles;   // 제목이 똑같은 기사를 뺀 관련 기사 수
+    public int storyCount;      // 같은 내용을 묶은 사건 수
+    public int riskyArticles;   // 위험 신호가 하나라도 잡힌 사건 수
     public int sourceCount;     // 서로 다른 언론사 수
     public int regionCount;     // 서로 다른 나라/판 수
     public List<SignalHit> signals = new ArrayList<>();

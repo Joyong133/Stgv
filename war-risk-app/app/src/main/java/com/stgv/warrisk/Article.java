@@ -18,6 +18,11 @@ public class Article {
     public List<String> tags = new ArrayList<>(); // 잡힌 신호 이름
     public String embassy;                  // 대사관·자국민 철수 소식이면 그 설명, 아니면 null
 
+    // 같은 사건 묶기 결과 (대표 기사에만 채워짐)
+    public int dupCount;                    // 같은 내용을 보도한 다른 기사 수
+    public String otherOutlets;             // 같은 내용을 보도한 다른 언론사 (최대 4곳 + "외 N곳")
+    public long storyStart;                 // 사건 첫 보도 시각
+
     public Article() {}
 
     public Article(String title, String url, String source, String region,

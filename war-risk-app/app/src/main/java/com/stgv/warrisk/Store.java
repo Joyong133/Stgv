@@ -55,6 +55,7 @@ public class Store {
             o.put("score", r.score);
             o.put("level", r.level);
             o.put("total", r.totalArticles);
+            o.put("stories", r.storyCount);
             o.put("risky", r.riskyArticles);
             o.put("sources", r.sourceCount);
             o.put("regions", r.regionCount);
@@ -115,6 +116,9 @@ public class Store {
                 j.put("m", a.timeMs);
                 j.put("sc", a.score);
                 j.put("tg", new JSONArray(a.tags));
+                j.put("dc", a.dupCount);
+                j.put("ss", a.storyStart);
+                if (a.otherOutlets != null) j.put("oo", a.otherOutlets);
                 if (a.embassy != null) j.put("em", a.embassy);
                 arts.put(j);
             }
@@ -147,6 +151,7 @@ public class Store {
             r.score = o.optInt("score");
             r.level = o.optInt("level");
             r.totalArticles = o.optInt("total");
+            r.storyCount = o.optInt("stories");
             r.riskyArticles = o.optInt("risky");
             r.sourceCount = o.optInt("sources");
             r.regionCount = o.optInt("regions");
@@ -193,6 +198,9 @@ public class Store {
                 Article a = new Article(j.optString("t"), j.optString("u"), j.optString("s"),
                         j.optString("r"), j.optString("l"), j.optString("v"), j.optLong("m"));
                 a.score = j.optInt("sc");
+                a.dupCount = j.optInt("dc");
+                a.storyStart = j.optLong("ss", a.timeMs);
+                if (j.has("oo")) a.otherOutlets = j.optString("oo");
                 JSONArray tg = j.optJSONArray("tg");
                 if (tg != null) for (int k = 0; k < tg.length(); k++) a.tags.add(tg.optString(k));
                 if (j.has("em")) a.embassy = j.optString("em");

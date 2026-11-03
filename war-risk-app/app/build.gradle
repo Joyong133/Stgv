@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.stgv.warrisk'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.stgv.warrisk'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // 개인 설치용 공개 서명 키(비밀번호: android). 같은 키로 서명해야 새 버전을 덮어 설치할 수 있습니다.
+        shared {
+            storeFile file('warrisk.keystore')
+            storePassword 'android'
+            keyAlias 'warrisk'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.shared
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 반원 위험 게이지 모양 런처 아이콘 (108dp 적응형 아이콘 전경) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 관심 · 주의 · 경계 · 심각 구간 (중심 54,64 반지름 24) -->
+    <path android:fillColor="#00000000" android:strokeColor="#42A5F5" android:strokeWidth="8"
+        android:pathData="M30,64A24,24 0,0 1,37.03 47.03" />
+    <path android:fillColor="#00000000" android:strokeColor="#FDD835" android:strokeWidth="8"
+        android:pathData="M37.03,47.03A24,24 0,0 1,54 40" />
+    <path android:fillColor="#00000000" android:strokeColor="#FB8C00" android:strokeWidth="8"
+        android:pathData="M54,40A24,24 0,0 1,70.97 47.03" />
+    <path android:fillColor="#00000000" android:strokeColor="#E53935" android:strokeWidth="8"
+        android:pathData="M70.97,47.03A24,24 0,0 1,78 64" />
+    <!-- 바늘 -->
+    <path android:fillColor="#00000000" android:strokeColor="#ECEFF1" android:strokeWidth="4"
+        android:strokeLineCap="round" android:pathData="M54,64L66,48" />
+    <path android:fillColor="#ECEFF1" android:pathData="M54,60a4,4 0,1 1,0 8a4,4 0,1 1,0 -8z" />
+</vector>

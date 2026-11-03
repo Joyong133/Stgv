@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">남북 위험도</string>
+    <string name="title">한반도 군사 위험도</string>
+    <string name="subtitle">전 세계 뉴스로 보는 남북 충돌 위험</string>
+    <string name="refresh">지금 확인</string>
+    <string name="checking">전 세계 뉴스 확인 중…</string>
+    <string name="signals_title">점수 근거 (잡힌 위험 신호)</string>
+    <string name="trend_title">위험 지수 추이</string>
+    <string name="settings_title">자동 확인 · 알림</string>
+    <string name="auto_check">백그라운드에서 자동 확인</string>
+    <string name="articles_title">수집된 기사</string>
+    <string name="disclaimer">이 앱은 뉴스 제목의 단어를 세어 만든 참고용 지표이며 정부의 공식 경보가 아닙니다. 오보·과장 보도에 따라 점수가 달라질 수 있습니다. 실제 위급 상황에서는 재난문자, 행정안전부 안전디딤돌 앱, 국방부·합동참모본부 발표를 따르세요.</string>
+    <string name="sources_note">출처: Google 뉴스 9개 지역판(한국·미국·영국·일본·중국·러시아·독일·프랑스·스페인어권) + GDELT 전 세계 뉴스 모니터링. 최근 72시간 기사.</string>
+</resources>

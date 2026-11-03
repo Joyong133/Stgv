@@ -106,7 +106,7 @@ public class NewsFetcher {
             futures.add(pool.submit(() -> fetchGoogle(e)));
         }
         names.add("GDELT");
-        futures.add(pool.submit(NewsFetcher::fetchGdelt));
+        futures.add(pool.submit(NewsFetcher::fetchGdeltAll));
 
         List<Article> all = new ArrayList<>();
         for (int i = 0; i < futures.size(); i++) {
@@ -180,7 +180,7 @@ public class NewsFetcher {
     }
 
     // ── GDELT (전 세계 65개 언어 뉴스 모니터링) ─────────────────────────
-    static List<Article> fetchGdelt() throws Exception {
+    static List<Article> fetchGdeltAll() throws Exception {
         List<Article> out = fetchGdelt(GDELT_QUERY, 150);
         // GDELT는 5초에 한 번만 요청을 받으므로 잠시 기다렸다가 대사관 검색
         Thread.sleep(5500);

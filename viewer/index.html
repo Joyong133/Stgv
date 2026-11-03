@@ -189,6 +189,7 @@ kbd {
   border: 1px solid var(--line); background: var(--raised); color: var(--fg);
 }
 .note { margin: 0; font-size: 12px; color: var(--muted); }
+.android .keys, .android .desktop-only { display: none; }
 
 /* 설정 */
 .sheet {
@@ -376,7 +377,7 @@ kbd {
       <p class="lede">JPG를 넣으면 파일 이름 순서대로 한 장씩 넘겨 봅니다. ZIP · CBZ 안에 든 이미지도 압축을 따로 풀지 않고 바로 열려요.</p>
       <div class="dropzone">
         <div class="fan" aria-hidden="true"><span>001</span><span>002</span><span>010</span></div>
-        <p>파일, 폴더, ZIP을 이 창에 끌어다 놓으세요.</p>
+        <p class="desktop-only">파일, 폴더, ZIP을 이 창에 끌어다 놓으세요.</p>
         <div class="actions">
           <button type="button" class="btn primary" data-act="open-files">파일 고르기</button>
           <button type="button" class="btn" data-act="open-folder">폴더 고르기</button>
@@ -604,21 +605,25 @@ kbd {
     return locked;
   }
 
-  // list: [{ file, path }]
+  // list: [{ file, path }] 또는 앱에서 넘어온 [{ name, path, type, getBlob }]
   async function addFiles(list) {
     if (!list.length) return;
     const out = [];
     const errors = [];
     let skipped = 0, locked = 0;
     setBusy('파일 읽는 중…');
-    for (const { file, path } of list) {
+    for (const item of list) {
+      const { path } = item;
+      const name = item.file ? item.file.name : (item.name || path.split('/').pop());
+      const type = (item.file ? item.file.type : item.type) || '';
+      const getBlob = item.file ? () => Promise.resolve(item.file) : item.getBlob;
       if (JUNK_RE.test(path)) continue;
-      if (IMG_RE.test(file.name)) {
-        out.push(makePage(path, () => Promise.resolve(file), false));
-      } else if (ZIP_RE.test(file.name) || /zip/i.test(file.type)) {
-        setBusy(`ZIP 여는 중… ${file.name}`);
-        try { locked += await addZip(file, path, out, 0); }
-        catch (e) { errors.push(`${file.name}: ${e.message}`); }
+      if (IMG_RE.test(name) || (!ZIP_RE.test(name) && /^image\//i.test(type))) {
+        out.push(makePage(path, getBlob, false));
+      } else if (ZIP_RE.test(name) || /zip/i.test(type)) {
+        setBusy(`ZIP 여는 중… ${name}`);
+        try { locked += await addZip(await getBlob(), path, out, 0); }
+        catch (e) { errors.push(`${name}: ${e.message}`); }
       } else {
         skipped++;
       }
@@ -876,6 +881,7 @@ kbd {
     const n = S.pages.length;
     els.app.classList.toggle('empty-state', !n);
     els.app.classList.toggle('immersive', !S.chrome && n > 0);
+    if (typeof syncImmersive === 'function') syncImmersive();
     const sp = S.mode === 'double' ? S.spread : [S.idx];
     const a = sp[0] + 1, b = sp[sp.length - 1] + 1;
     els.counter.textContent = n ? (b > a ? `${a}–${b} / ${n}` : `${a} / ${n}`) : '0 / 0';
@@ -959,10 +965,17 @@ kbd {
     if (S.idx % 2 !== startParity) S.idx -= 1;
   }
 
+  let immersiveSent = false;
   function toggleChrome(force) {
     S.chrome = typeof force === 'boolean' ? force : !S.chrome;
     if (!S.chrome) closeSettings();
     updateChrome();
+  }
+  function syncImmersive() {
+    const want = !S.chrome && S.pages.length > 0;
+    if (!AND || want === immersiveSent) return;
+    immersiveSent = want;
+    try { AND.setImmersive(want); } catch (e) { /* 무시 */ }
   }
 
   /* ---------- 설정 ---------- */
@@ -1117,8 +1130,9 @@ kbd {
   });
 
   /* ---------- 파일 넣기 ---------- */
-  function pickFiles() { els.fileIn.click(); }
-  function pickFolder() { els.dirIn.click(); }
+  const AND = window.NeomgimAndroid || null;   // 안드로이드 앱 안에서 열렸을 때만 있음
+  function pickFiles() { if (AND) AND.pickFiles(); else els.fileIn.click(); }
+  function pickFolder() { if (AND) AND.pickFolder(); else els.dirIn.click(); }
   const fromInput = (input) => [...input.files].map((f) => ({ file: f, path: f.webkitRelativePath || f.name }));
   els.fileIn.addEventListener('change', () => { const l = fromInput(els.fileIn); els.fileIn.value = ''; addFiles(l); });
   els.dirIn.addEventListener('change', () => { const l = fromInput(els.dirIn); els.dirIn.value = ''; addFiles(l); });
@@ -1255,8 +1269,10 @@ kbd {
   });
   els.seek.addEventListener('change', () => setIdx(+els.seek.value - 1));
 
-  els.fsBtn.hidden = !document.fullscreenEnabled;
+  els.fsBtn.hidden = !document.fullscreenEnabled && !AND;
+  if (AND) { els.fsBtn.setAttribute('aria-label', '전체 화면으로 보기'); els.fsBtn.title = '전체 화면으로 보기'; }
   function toggleFullscreen() {
+    if (AND) { toggleChrome(false); toast('화면 가운데를 누르면 메뉴가 다시 나와요', 1800); return; }
     if (!document.fullscreenEnabled) return;
     const req = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
     if (req && req.catch) req.catch(() => toast('전체 화면으로 바꿀 수 없어요'));
@@ -1343,9 +1359,33 @@ kbd {
     if (handled) e.preventDefault();
   });
 
+  /* ---------- 안드로이드 앱 연결 ---------- */
+  if (AND) {
+    document.documentElement.classList.add('android');
+    const fetchBlob = (url) => fetch(url).then((r) => {
+      if (!r.ok) throw new Error('파일을 읽을 수 없어요');
+      return r.blob();
+    });
+    window.__nativeFiles = (arr) => {
+      if (!arr || !arr.length) { toast('열 수 있는 이미지나 ZIP이 없어요'); return; }
+      addFiles(arr.map((e) => ({ name: e.name, path: e.path, type: e.type, getBlob: () => fetchBlob(e.url) })));
+    };
+    window.__nativeBusy = (text) => setBusy(text || null);
+    window.__nativeToast = (text) => toast(text);
+    // 뒤로 가기: 1 = 화면 안에서 처리함, 2 = 연 파일 없음(바로 닫아도 됨), 0 = 처리할 것 없음
+    window.__onBack = () => {
+      if (!els.grid.hidden) { closeGrid(); return 1; }
+      if (!els.settings.hidden) { closeSettings(); return 1; }
+      if (!S.pages.length) return 2;
+      if (!S.chrome) { toggleChrome(true); return 1; }
+      return 0;
+    };
+  }
+
   /* ---------- 시작 ---------- */
   loadSettings();
   render();
+  if (AND) { try { AND.ready(); } catch (e) { /* 무시 */ } }
 })();
 </script>
 </body>

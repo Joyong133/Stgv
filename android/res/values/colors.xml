@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ground">#FFE4E5EA</color>
+    <color name="chrome">#FFFBFBFD</color>
+    <color name="icon_bg">#FF16181D</color>
+</resources>

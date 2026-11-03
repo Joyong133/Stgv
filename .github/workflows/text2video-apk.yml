@@ -1,0 +1,49 @@
+name: TextVideo APK build
+
+on:
+  push:
+    paths:
+      - 'text2video/**'
+      - '.github/workflows/text2video-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: text2video
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk ../TextVideo.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TextVideo-apk
+          path: TextVideo.apk
+
+      - name: Publish to Releases (textvideo-latest)
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete textvideo-latest --yes --cleanup-tag || true
+          gh release create textvideo-latest TextVideo.apk \
+            --target "${{ github.sha }}" --prerelease \
+            --title "텍스트 영상 메이커 APK (최신 빌드)" \
+            --notes "브랜치 ${{ github.ref_name }} / 커밋 ${{ github.sha }} 에서 자동 빌드한 APK입니다. 휴대폰에서 TextVideo.apk 를 받아 설치하세요."

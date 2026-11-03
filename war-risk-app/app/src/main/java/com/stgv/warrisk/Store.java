@@ -7,7 +7,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** 마지막 결과, 위험 지수 기록, 설정을 휴대폰에 저장한다. */
 public class Store {
@@ -33,8 +35,14 @@ public class Store {
     public static int alertLevel(Context c) { return prefs(c).getInt("alertLevel", RiskReport.LEVEL_ALERT); }
     public static void setAlertLevel(Context c, int v) { prefs(c).edit().putInt("alertLevel", v).apply(); }
 
-    public static boolean onlyRisky(Context c) { return prefs(c).getBoolean("onlyRisky", false); }
-    public static void setOnlyRisky(Context c, boolean v) { prefs(c).edit().putBoolean("onlyRisky", v).apply(); }
+    /** 기사 목록 필터: 0 전체, 1 위험 신호 기사만, 2 대사관 철수 소식만. */
+    public static final int FILTER_ALL = 0, FILTER_RISKY = 1, FILTER_EMBASSY = 2;
+    public static int filterMode(Context c) { return prefs(c).getInt("filter", FILTER_ALL); }
+    public static void setFilterMode(Context c, int v) { prefs(c).edit().putInt("filter", v).apply(); }
+
+    /** 새 나라의 대사관·자국민 철수 소식이 잡히면 알림 (기본: 켬). */
+    public static boolean embassyAlert(Context c) { return prefs(c).getBoolean("embassyAlert", true); }
+    public static void setEmbassyAlert(Context c, boolean v) { prefs(c).edit().putBoolean("embassyAlert", v).apply(); }
 
     public static boolean sortBySeverity(Context c) { return prefs(c).getBoolean("sortSev", false); }
     public static void setSortBySeverity(Context c, boolean v) { prefs(c).edit().putBoolean("sortSev", v).apply(); }
@@ -50,6 +58,28 @@ public class Store {
             o.put("risky", r.riskyArticles);
             o.put("sources", r.sourceCount);
             o.put("regions", r.regionCount);
+            o.put("war", r.warProb);
+            JSONArray wf = new JSONArray();
+            for (RiskReport.OddsFactor f : r.warFactors) {
+                JSONObject j = new JSONObject();
+                j.put("n", f.name);
+                j.put("m", f.multiplier);
+                wf.put(j);
+            }
+            o.put("warFactors", wf);
+            JSONArray emb = new JSONArray();
+            for (RiskReport.EmbassyEvent e : r.embassyEvents) {
+                JSONObject j = new JSONObject();
+                j.put("ty", e.type);
+                j.put("lo", e.location);
+                j.put("co", e.country);
+                j.put("n", e.articles);
+                j.put("m", e.latestMs);
+                j.put("t", e.title);
+                j.put("u", e.url);
+                emb.put(j);
+            }
+            o.put("embassy", emb);
             JSONArray sig = new JSONArray();
             for (RiskReport.SignalHit h : r.signals) {
                 JSONObject s = new JSONObject();
@@ -73,6 +103,7 @@ public class Store {
                 j.put("m", a.timeMs);
                 j.put("sc", a.score);
                 j.put("tg", new JSONArray(a.tags));
+                if (a.embassy != null) j.put("em", a.embassy);
                 arts.put(j);
             }
             o.put("articles", arts);
@@ -107,6 +138,25 @@ public class Store {
             r.riskyArticles = o.optInt("risky");
             r.sourceCount = o.optInt("sources");
             r.regionCount = o.optInt("regions");
+            r.warProb = o.optDouble("war", WarOdds.baseProbability());
+            JSONArray wf = o.optJSONArray("warFactors");
+            if (wf != null) for (int i = 0; i < wf.length(); i++) {
+                JSONObject j = wf.getJSONObject(i);
+                r.warFactors.add(new RiskReport.OddsFactor(j.optString("n"), j.optDouble("m", 1)));
+            }
+            JSONArray emb = o.optJSONArray("embassy");
+            if (emb != null) for (int i = 0; i < emb.length(); i++) {
+                JSONObject j = emb.getJSONObject(i);
+                RiskReport.EmbassyEvent e = new RiskReport.EmbassyEvent();
+                e.type = j.optInt("ty");
+                e.location = j.optString("lo");
+                e.country = j.optString("co");
+                e.articles = j.optInt("n");
+                e.latestMs = j.optLong("m");
+                e.title = j.optString("t");
+                e.url = j.optString("u");
+                r.embassyEvents.add(e);
+            }
             JSONArray sig = o.optJSONArray("signals");
             if (sig != null) for (int i = 0; i < sig.length(); i++) {
                 JSONObject h = sig.getJSONObject(i);
@@ -121,6 +171,7 @@ public class Store {
                 a.score = j.optInt("sc");
                 JSONArray tg = j.optJSONArray("tg");
                 if (tg != null) for (int k = 0; k < tg.length(); k++) a.tags.add(tg.optString(k));
+                if (j.has("em")) a.embassy = j.optString("em");
                 r.articles.add(a);
             }
             JSONArray err = o.optJSONArray("errors");
@@ -153,4 +204,12 @@ public class Store {
     // ── 알림 상태 ─────────────────────────────────────────────────
     public static int lastNotifiedLevel(Context c) { return prefs(c).getInt("lastNotified", -1); }
     public static void setLastNotifiedLevel(Context c, int v) { prefs(c).edit().putInt("lastNotified", v).apply(); }
+
+    /** 이미 알린 철수 소식 (유형|장소|나라). */
+    public static Set<String> notifiedEmbassy(Context c) {
+        return new HashSet<>(prefs(c).getStringSet("notifiedEmbassy", new HashSet<>()));
+    }
+    public static void setNotifiedEmbassy(Context c, Set<String> v) {
+        prefs(c).edit().putStringSet("notifiedEmbassy", new HashSet<>(v)).apply();
+    }
 }

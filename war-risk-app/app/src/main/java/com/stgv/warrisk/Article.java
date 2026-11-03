@@ -16,6 +16,7 @@ public class Article {
     // RiskEngine이 채우는 값
     public int score;                       // 이 기사가 담은 위험 신호 가중치 합
     public List<String> tags = new ArrayList<>(); // 잡힌 신호 이름
+    public String embassy;                  // 대사관·자국민 철수 소식이면 그 설명, 아니면 null
 
     public Article() {}
 

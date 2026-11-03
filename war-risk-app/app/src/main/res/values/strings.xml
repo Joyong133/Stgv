@@ -10,6 +10,11 @@
     <string name="settings_title">자동 확인 · 알림</string>
     <string name="auto_check">백그라운드에서 자동 확인</string>
     <string name="articles_title">수집된 기사</string>
+    <string name="war_title">전쟁 가능성 (향후 30일 추정)</string>
+    <string name="war_note">평시 기준값(약 0.2%)에 위험 지수, 각국 대사관·자국민 철수, 최근 급상승을 곱해 어림한 값입니다. 과거 자료로 검증한 예측 모델이 아니므로 크기 감각을 잡는 참고용으로만 보세요.</string>
+    <string name="embassy_title">각국 대사관 철수 소식</string>
+    <string name="embassy_note">서울(한국) 또는 평양(북한) 주재 대사관의 철수·폐쇄·대피, 자국민 출국 권고·여행금지 보도를 찾습니다. 대피 훈련·공관 재개 소식과 다른 나라(이스라엘·우크라이나 등)에서의 철수는 제외합니다. 누르면 기사가 열립니다.</string>
+    <string name="embassy_alert">새 대사관 철수 소식이 나오면 알림</string>
     <string name="disclaimer">이 앱은 뉴스 제목의 단어를 세어 만든 참고용 지표이며 정부의 공식 경보가 아닙니다. 오보·과장 보도에 따라 점수가 달라질 수 있습니다. 실제 위급 상황에서는 재난문자, 행정안전부 안전디딤돌 앱, 국방부·합동참모본부 발표를 따르세요.</string>
-    <string name="sources_note">출처: Google 뉴스 9개 지역판(한국·미국·영국·일본·중국·러시아·독일·프랑스·스페인어권) + GDELT 전 세계 뉴스 모니터링. 최근 72시간 기사.</string>
+    <string name="sources_note">출처: Google 뉴스 9개 지역판(한국·미국·영국·일본·중국·러시아·독일·프랑스·스페인어권)과 6개 대사관 철수 전용 검색, GDELT 전 세계 뉴스 모니터링. 최근 72시간 기사.</string>
 </resources>

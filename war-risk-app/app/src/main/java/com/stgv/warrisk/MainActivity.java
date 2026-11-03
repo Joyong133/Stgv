@@ -33,11 +33,12 @@ public class MainActivity extends Activity {
 
     private GaugeView gauge;
     private TextView level, score, desc, meta, errors, refresh, interval, alertLevel, autoNote,
-            articlesTitle, filter, sort, empty, trendRange;
+            articlesTitle, filter, sort, empty, trendRange, warProb, warIntuitive, embassyTitle;
     private ProgressBar progress;
-    private LinearLayout signals;
+    private LinearLayout signals, warFactors, embassy;
     private TrendView trend;
-    private Switch auto;
+    private ProbBarView warBar;
+    private Switch auto, embassyAlert;
 
     private final ArticleAdapter adapter = new ArticleAdapter();
     private RiskReport report;
@@ -78,6 +79,19 @@ public class MainActivity extends Activity {
         filter = header.findViewById(R.id.filter);
         sort = header.findViewById(R.id.sort);
         empty = footer.findViewById(R.id.empty);
+        warProb = header.findViewById(R.id.warProb);
+        warIntuitive = header.findViewById(R.id.warIntuitive);
+        warBar = header.findViewById(R.id.warBar);
+        warFactors = header.findViewById(R.id.warFactors);
+        embassy = header.findViewById(R.id.embassy);
+        embassyTitle = header.findViewById(R.id.embassyTitle);
+        embassyAlert = header.findViewById(R.id.embassyAlert);
+
+        embassyAlert.setChecked(Store.embassyAlert(this));
+        embassyAlert.setOnCheckedChangeListener((b, on) -> {
+            Store.setEmbassyAlert(this, on);
+            if (on) askNotificationPermission();
+        });
 
         refresh.setOnClickListener(v -> refreshNow());
 
@@ -101,7 +115,7 @@ public class MainActivity extends Activity {
             renderSettings();
         });
         filter.setOnClickListener(v -> {
-            Store.setOnlyRisky(this, !Store.onlyRisky(this));
+            Store.setFilterMode(this, (Store.filterMode(this) + 1) % 3);
             renderArticles();
         });
         sort.setOnClickListener(v -> {
@@ -177,6 +191,7 @@ public class MainActivity extends Activity {
         renderTrendRange();
         if (report == null) {
             gauge.setScore(-1);
+            warBar.setProbability(-1);
             renderArticles();
             return;
         }
@@ -195,8 +210,69 @@ public class MainActivity extends Activity {
             errors.setVisibility(View.VISIBLE);
             errors.setText("일부 출처를 가져오지 못했습니다: " + TextUtils.join(", ", report.errors));
         }
+        renderWar();
+        renderEmbassy();
         renderSignals();
         renderArticles();
+    }
+
+    private void renderWar() {
+        double p = report.warProb;
+        warProb.setText(WarOdds.percent(p));
+        warProb.setTextColor(ProbBarView.colorFor(p));
+        warIntuitive.setText(WarOdds.intuitive(p));
+        warBar.setProbability(p);
+        warFactors.removeAllViews();
+        warFactors.addView(smallText(String.format(Locale.KOREA, "평시 기준 %s 에서 시작",
+                WarOdds.percent(WarOdds.baseProbability())), 0xFF9AA4AF));
+        for (RiskReport.OddsFactor f : report.warFactors) {
+            if (f.multiplier < 1.05) continue;
+            TextView t = smallText(String.format(Locale.KOREA, "  × %.1f배   %s", f.multiplier, f.name), 0xFFECEFF1);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            warFactors.addView(t);
+        }
+    }
+
+    private void renderEmbassy() {
+        embassy.removeAllViews();
+        float d = getResources().getDisplayMetrics().density;
+        List<RiskReport.EmbassyEvent> evs = report.embassyEvents;
+        if (evs.isEmpty()) {
+            embassyTitle.setText(R.string.embassy_title);
+            TextView t = smallText("✓ 현재 보도된 대사관 철수·자국민 철수 소식이 없습니다.", 0xFF66BB6A);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            embassy.addView(t);
+            return;
+        }
+        embassyTitle.setText("각국 대사관 철수 소식 " + evs.size() + "건");
+        for (final RiskReport.EmbassyEvent e : evs) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding((int) (10 * d), (int) (8 * d), (int) (10 * d), (int) (8 * d));
+            row.setBackgroundResource(R.drawable.bg_chip);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = (int) (6 * d);
+
+            boolean seoul = e.type == EmbassyDetector.TYPE_CITIZEN || EmbassyDetector.LOC_SEOUL.equals(e.location);
+            int color = seoul ? GaugeView.LEVEL_COLORS[3] : GaugeView.LEVEL_COLORS[2];
+            TextView head = smallText("⚠ " + e.country + " — " + e.typeName() + " · " + e.location, color);
+            head.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+            head.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(head);
+            TextView sub = smallText("기사 " + e.articles + "건 · 최근 " + timeAgo(e.latestMs)
+                    + (e.articles < 2 ? " · 아직 1건뿐이라 확인 필요" : ""), 0xFF9AA4AF);
+            row.addView(sub);
+            if (e.title != null && !e.title.isEmpty()) {
+                TextView tt = smallText("“" + e.title + "”", 0xFFECEFF1);
+                tt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+                tt.setMaxLines(2);
+                tt.setEllipsize(TextUtils.TruncateAt.END);
+                row.addView(tt);
+            }
+            row.setOnClickListener(v -> openUrl(e.url));
+            embassy.addView(row, lp);
+        }
     }
 
     private void renderSignals() {
@@ -281,16 +357,21 @@ public class MainActivity extends Activity {
     }
 
     private void renderArticles() {
-        boolean onlyRisky = Store.onlyRisky(this);
+        int mode = Store.filterMode(this);
         boolean bySev = Store.sortBySeverity(this);
-        filter.setText(onlyRisky ? "위험 신호 기사만" : "전체 기사");
-        filter.setBackgroundResource(onlyRisky ? R.drawable.bg_chip_on : R.drawable.bg_chip);
+        filter.setText(mode == Store.FILTER_RISKY ? "위험 신호 기사만"
+                : mode == Store.FILTER_EMBASSY ? "대사관 철수 소식만" : "전체 기사");
+        filter.setBackgroundResource(mode != Store.FILTER_ALL ? R.drawable.bg_chip_on : R.drawable.bg_chip);
         sort.setText(bySev ? "위험한 순" : "최신순");
         sort.setBackgroundResource(bySev ? R.drawable.bg_chip_on : R.drawable.bg_chip);
 
         List<Article> items = new ArrayList<>();
         if (report != null) {
-            for (Article a : report.articles) if (!onlyRisky || a.score > 0) items.add(a);
+            for (Article a : report.articles) {
+                if (mode == Store.FILTER_RISKY && a.score <= 0) continue;
+                if (mode == Store.FILTER_EMBASSY && a.embassy == null) continue;
+                items.add(a);
+            }
         }
         if (bySev) {
             Collections.sort(items, (x, y) -> x.score != y.score
@@ -376,7 +457,8 @@ public class MainActivity extends Activity {
                 tags.setVisibility(View.GONE);
             } else {
                 tags.setVisibility(View.VISIBLE);
-                tags.setText("# " + TextUtils.join("  # ", a.tags));
+                tags.setText((a.embassy != null ? "⚠ " + a.embassy + "   " : "")
+                        + "# " + TextUtils.join("  # ", a.tags));
                 tags.setTextColor(a.score > 0 ? c : Color.rgb(102, 187, 106));
             }
             return v;

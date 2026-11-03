@@ -31,9 +31,14 @@ public class NewsFetcher {
 
     /** Google 뉴스 지역판 하나. */
     static class Edition {
-        final String region, lang, hl, gl, ceid, query;
+        final String label, region, lang, hl, gl, ceid, query;
 
         Edition(String region, String lang, String hl, String gl, String ceid, String query) {
+            this(region, region, lang, hl, gl, ceid, query);
+        }
+
+        Edition(String label, String region, String lang, String hl, String gl, String ceid, String query) {
+            this.label = label;
             this.region = region;
             this.lang = lang;
             this.hl = hl;
@@ -62,22 +67,42 @@ public class NewsFetcher {
                     "\"Corée du Nord\" (missile OR militaire OR nucléaire OR Séoul)"),
             new Edition("스페인어권", "ES", "es-419", "US", "US:es-419",
                     "\"Corea del Norte\" (misil OR militar OR nuclear OR Seúl)"),
+
+            // ── 각국 대사관·자국민 철수 소식 전용 검색 ──
+            new Edition("한국(대사관)", "한국", "KO", "ko", "KR", "KR:ko",
+                    "(대사관 OR 공관 OR 교민 OR 자국민) (철수 OR 대피 OR 폐쇄 OR 출국) (서울 OR 주한 OR 한국 OR 북한 OR 평양)"),
+            new Edition("미국(대사관)", "미국", "EN", "en-US", "US", "US:en",
+                    "(embassy OR embassies OR diplomats OR citizens) (evacuate OR evacuation OR withdraw OR "
+                            + "\"ordered departure\" OR leave OR closes) (Seoul OR \"South Korea\" OR Pyongyang OR \"North Korea\")"),
+            new Edition("영국(대사관)", "영국", "EN", "en-GB", "GB", "GB:en",
+                    "(embassy OR \"travel advice\" OR nationals) (evacuate OR withdraw OR leave) (Seoul OR \"South Korea\" OR Pyongyang)"),
+            new Edition("일본(대사관)", "일본", "JA", "ja", "JP", "JP:ja",
+                    "(大使館 OR 邦人) (退避 OR 撤収 OR 閉鎖 OR 渡航中止) (韓国 OR ソウル OR 北朝鮮 OR 平壌)"),
+            new Edition("중국(대사관)", "중국", "ZH", "zh-CN", "CN", "CN:zh-Hans",
+                    "(大使馆 OR 侨民) (撤离 OR 撤侨 OR 关闭) (韩国 OR 首尔 OR 朝鲜 OR 平壤)"),
+            new Edition("러시아(대사관)", "러시아", "RU", "ru", "RU", "RU:ru",
+                    "посольство (эвакуация OR закрытие OR отзыв) (Сеул OR КНДР OR Пхеньян)"),
     };
 
     static final String GDELT_QUERY =
             "(\"north korea\" OR pyongyang OR \"kim jong un\" OR \"inter-korean\" OR dprk) "
                     + "(missile OR military OR artillery OR nuclear OR war OR troops OR border OR drone)";
 
+    static final String GDELT_EMBASSY_QUERY =
+            "(embassy OR embassies OR diplomats OR nationals) "
+                    + "(evacuate OR evacuation OR withdraw OR \"ordered departure\" OR closes OR leave) "
+                    + "(seoul OR \"south korea\" OR pyongyang OR \"north korea\")";
+
     static final String UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) "
             + "Chrome/126.0 Mobile Safari/537.36";
 
     /** 모든 경로에서 동시에 수집. 일부 실패해도 나머지 결과는 돌려준다. */
     public static List<Article> fetchAll(List<String> errors) {
-        ExecutorService pool = Executors.newFixedThreadPool(5);
+        ExecutorService pool = Executors.newFixedThreadPool(6);
         List<Future<List<Article>>> futures = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (final Edition e : EDITIONS) {
-            names.add("Google 뉴스 " + e.region);
+            names.add("Google 뉴스 " + e.label);
             futures.add(pool.submit(() -> fetchGoogle(e)));
         }
         names.add("GDELT");
@@ -86,7 +111,7 @@ public class NewsFetcher {
         List<Article> all = new ArrayList<>();
         for (int i = 0; i < futures.size(); i++) {
             try {
-                all.addAll(futures.get(i).get(40, TimeUnit.SECONDS));
+                all.addAll(futures.get(i).get(60, TimeUnit.SECONDS));
             } catch (Exception ex) {
                 Throwable c = ex.getCause() != null ? ex.getCause() : ex;
                 synchronized (errors) {
@@ -156,9 +181,20 @@ public class NewsFetcher {
 
     // ── GDELT (전 세계 65개 언어 뉴스 모니터링) ─────────────────────────
     static List<Article> fetchGdelt() throws Exception {
+        List<Article> out = fetchGdelt(GDELT_QUERY, 150);
+        // GDELT는 5초에 한 번만 요청을 받으므로 잠시 기다렸다가 대사관 검색
+        Thread.sleep(5500);
+        try {
+            out.addAll(fetchGdelt(GDELT_EMBASSY_QUERY, 75));
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    static List<Article> fetchGdelt(String query, int max) throws Exception {
         String url = "https://api.gdeltproject.org/api/v2/doc/doc?query="
-                + URLEncoder.encode(GDELT_QUERY, "UTF-8")
-                + "&mode=artlist&maxrecords=150&timespan=3d&sort=datedesc&format=json";
+                + URLEncoder.encode(query, "UTF-8")
+                + "&mode=artlist&maxrecords=" + max + "&timespan=3d&sort=datedesc&format=json";
         String body = httpGet(url).trim();
         List<Article> out = new ArrayList<>();
         if (!body.startsWith("{")) return out; // 오류 시 GDELT는 일반 텍스트를 돌려준다
@@ -256,10 +292,10 @@ public class NewsFetcher {
     }
 
     /** 수집 + 분석을 한 번에. */
-    public static RiskReport check() {
+    public static RiskReport check(List<long[]> history) {
         List<String> errors = Collections.synchronizedList(new ArrayList<>());
         List<Article> raw = fetchAll(errors);
-        RiskReport r = RiskEngine.analyze(raw, System.currentTimeMillis());
+        RiskReport r = RiskEngine.analyze(raw, System.currentTimeMillis(), history);
         r.errors.addAll(errors);
         return r;
     }

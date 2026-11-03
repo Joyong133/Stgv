@@ -32,7 +32,36 @@ public class RiskReport {
         }
     }
 
+    /** 같은 나라·장소·유형의 철수 소식 묶음. */
+    public static class EmbassyEvent {
+        public int type;          // EmbassyDetector.TYPE_*
+        public String location;   // EmbassyDetector.LOC_*
+        public String country;
+        public int articles;
+        public long latestMs;
+        public String title;      // 가장 최근 기사 제목
+        public String url;
+
+        public String typeName() {
+            return EmbassyDetector.TYPE_NAMES[type];
+        }
+    }
+
+    /** 전쟁 확률을 몇 배 올렸는지 보여주는 요인. */
+    public static class OddsFactor {
+        public String name;
+        public double multiplier;
+
+        public OddsFactor(String name, double multiplier) {
+            this.name = name;
+            this.multiplier = multiplier;
+        }
+    }
+
     public long checkedAt;
+    public double warProb;      // 0~1, 향후 30일 전쟁 가능성 어림값
+    public List<OddsFactor> warFactors = new ArrayList<>();
+    public List<EmbassyEvent> embassyEvents = new ArrayList<>();
     public int score;           // 0~100
     public int level;
     public int totalArticles;   // 중복 제거 후 관련 기사 수

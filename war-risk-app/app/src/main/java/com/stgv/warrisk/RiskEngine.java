@@ -25,6 +25,8 @@ import java.util.regex.Pattern;
  *
  * 북한군의 러시아 파병처럼 '다른 전쟁' 기사는 사상자·교전 같은 단어가 많지만 한반도 위험과는 다르므로,
  * 한반도(남한·DMZ 등) 맥락 없이 우크라이나·러시아 전선을 다루는 기사는 강한 신호(가중치 20 이상)를 세지 않는다.
+ *
+ * 각국 대사관·자국민 철수 소식은 EmbassyDetector가 따로 판정해 가장 무거운 신호로 더한다.
  */
 public class RiskEngine {
 
@@ -107,6 +109,8 @@ public class RiskEngine {
             "украин*", "курск*", "ukraine", "ucrania*");
 
     static final List<Signal> SIGNALS = new ArrayList<>();
+    /** 제목 단어가 아니라 EmbassyDetector 판정으로 잡는 신호의 위치. */
+    static final int SIG_EMB_SEOUL, SIG_CITIZEN, SIG_EMB_PY, SIG_EVAC;
 
     static {
         // ── 매우 심각 ────────────────────────────────────────────
@@ -218,6 +222,19 @@ public class RiskEngine {
         SIGNALS.add(new Signal("교류·인도적 지원", -4,
                 "이산가족", "인도적 지원", "남북 교류", "남북협력", "humanitarian aid", "family reunion*",
                 "人道支援", "人道援助", "离散家属"));
+
+        // ── 대사관·자국민 철수 (EmbassyDetector가 판정) ─────────────────
+        // 전쟁 직전 각국이 가장 먼저 하는 일이 공관 직원·자국민 철수라 가장 무겁게 본다.
+        SIG_EMB_SEOUL = SIGNALS.size();
+        SIGNALS.add(new Signal("대사관 철수(서울)", 45));
+        SIG_CITIZEN = SIGNALS.size();
+        SIGNALS.add(new Signal("자국민 철수·여행금지", 30));
+        SIG_EMB_PY = SIGNALS.size();
+        SIGNALS.add(new Signal("대사관 철수(평양)", 15));
+
+        int evac = -1;
+        for (int i = 0; i < SIGNALS.size(); i++) if (SIGNALS.get(i).name.equals("대피령")) evac = i;
+        SIG_EVAC = evac;
     }
 
     static boolean any(Pattern[] ps, String text) {
@@ -245,7 +262,7 @@ public class RiskEngine {
         for (Article a : raw) {
             if (a.title == null || a.title.trim().isEmpty()) continue;
             if (a.timeMs > 0 && (now - a.timeMs) / 3600000.0 > MAX_AGE_HOURS) continue;
-            if (!any(RELEVANT, a.title)) continue;
+            if (!any(RELEVANT, a.title) && EmbassyDetector.detect(a.title) == null) continue;
             String key = titleKey(a.title);
             if (key.isEmpty()) continue;
             Article prev = unique.get(key);
@@ -256,6 +273,7 @@ public class RiskEngine {
         int[] count = new int[SIGNALS.size()];
         Set<String> sources = new HashSet<>();
         Set<String> regions = new HashSet<>();
+        Map<String, RiskReport.EmbassyEvent> events = new LinkedHashMap<>();
 
         for (Article a : unique.values()) {
             double ageH = a.timeMs > 0 ? Math.max(0, (now - a.timeMs) / 3600000.0) : 12.0;
@@ -264,8 +282,37 @@ public class RiskEngine {
 
             a.score = 0;
             a.tags = new ArrayList<>();
+            a.embassy = null;
+            EmbassyDetector.Event ev = foreignOnly ? null : EmbassyDetector.detect(a.title);
+            if (ev != null) {
+                int idx = ev.type == EmbassyDetector.TYPE_CITIZEN ? SIG_CITIZEN
+                        : EmbassyDetector.LOC_SEOUL.equals(ev.location) ? SIG_EMB_SEOUL : SIG_EMB_PY;
+                support[idx] += w;
+                count[idx]++;
+                a.tags.add(SIGNALS.get(idx).name);
+                a.score += SIGNALS.get(idx).weight;
+                a.embassy = ev.country + " · " + ev.label();
+
+                String key = ev.type + "|" + ev.location + "|" + ev.country;
+                RiskReport.EmbassyEvent e = events.get(key);
+                if (e == null) {
+                    e = new RiskReport.EmbassyEvent();
+                    e.type = ev.type;
+                    e.location = ev.location;
+                    e.country = ev.country;
+                    events.put(key, e);
+                }
+                e.articles++;
+                if (e.title == null || a.timeMs > e.latestMs) {
+                    e.latestMs = a.timeMs;
+                    e.title = a.title;
+                    e.url = a.url;
+                }
+            }
             for (int i = 0; i < SIGNALS.size(); i++) {
                 Signal s = SIGNALS.get(i);
+                if (s.patterns.length == 0) continue;           // 철수 신호는 위에서 처리
+                if (ev != null && i == SIG_EVAC) continue;      // 공관 대피를 '주민 대피령'으로 이중 계산하지 않음
                 if (foreignOnly && s.weight >= 20) continue;
                 if (!s.matches(a.title)) continue;
                 support[i] += w;
@@ -295,9 +342,18 @@ public class RiskEngine {
         rep.sourceCount = sources.size();
         rep.regionCount = regions.size();
 
+        rep.embassyEvents.addAll(events.values());
+        Collections.sort(rep.embassyEvents, (x, y) -> Long.compare(y.latestMs, x.latestMs));
         Collections.sort(rep.signals, (x, y) -> Double.compare(Math.abs(y.contribution), Math.abs(x.contribution)));
         Collections.sort(rep.articles, (x, y) -> Long.compare(y.timeMs, x.timeMs));
         return rep;
+    }
+
+    /** 분석 + 전쟁 가능성 계산. history는 이번 결과 이전의 [시각, 점수] 기록. */
+    public static RiskReport analyze(List<Article> raw, long now, List<long[]> history) {
+        RiskReport r = analyze(raw, now);
+        WarOdds.compute(r, history, now);
+        return r;
     }
 
     /** 테스트/디버그용: 신호 이름 → 가중치. */

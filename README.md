@@ -52,3 +52,9 @@ js/main.js        제목 화면 · 저장 · 항해 · 엔딩 · 메인 루프
 
 맵은 `js/maps.js`의 문자 지도(`.` 바닥, `T` 나무, `~` 물, `#` 벽 …)를 고치면 바로 바뀌고,
 몬스터 능력치와 아이템은 `js/data.js`에서 조정할 수 있습니다.
+
+---
+
+## 함께 들어 있는 프로젝트
+
+- [`youtube-subtitle-translator/`](youtube-subtitle-translator/) — Google Gemini 최신 모델로 유튜브 자막을 번역하는 크롬 확장 프로그램

@@ -1,0 +1,70 @@
+/* 번역 자막이 켜져 있을 때 유튜브 기본 자막 숨기기 */
+html.yst-hide-native .ytp-caption-window-container {
+  visibility: hidden !important;
+}
+
+.yst-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 60px;
+  z-index: 45;
+  display: none;
+  text-align: center;
+  pointer-events: none;
+  transition: bottom 0.15s ease;
+}
+
+.yst-box {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15em;
+  max-width: 86%;
+}
+
+.yst-line {
+  display: inline-block;
+  padding: 0.08em 0.4em;
+  border-radius: 0.18em;
+  background: rgba(8, 8, 8, 0.78);
+  color: #fff;
+  font-family: "YouTube Noto", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+}
+
+.yst-orig {
+  font-size: 0.78em;
+  color: #e6e6e6;
+}
+
+.yst-tr {
+  font-weight: 500;
+}
+
+.yst-tr.yst-pending {
+  color: #d0d0d0;
+}
+
+.yst-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 70;
+  display: none;
+  max-width: 60%;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(20, 20, 20, 0.82);
+  color: #fff;
+  font: 500 12px/1.4 Roboto, "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+  pointer-events: none;
+}
+
+.yst-status.yst-error {
+  background: rgba(150, 30, 30, 0.9);
+}

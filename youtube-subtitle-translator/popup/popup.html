@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YouTube 자막 AI 번역기</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../icons/icon48.png" alt="" width="28" height="28">
+      <h1>YouTube 자막 AI 번역기</h1>
+      <label class="switch" title="번역 켜기/끄기">
+        <input type="checkbox" id="enabled">
+        <span></span>
+      </label>
+    </header>
+
+    <section>
+      <label for="provider">번역 엔진</label>
+      <select id="provider"></select>
+    </section>
+
+    <section data-provider="gemini">
+      <label for="geminiApiKey">Gemini API 키</label>
+      <div class="row">
+        <input type="password" id="geminiApiKey" placeholder="AIza…" autocomplete="off" spellcheck="false">
+        <button type="button" class="ghost" data-toggle="geminiApiKey">보기</button>
+      </div>
+      <p class="hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 무료로 발급받을 수 있습니다.</p>
+
+      <label for="geminiModel">모델</label>
+      <div class="row">
+        <input type="text" id="geminiModel" list="modelList" spellcheck="false">
+        <button type="button" id="loadModels" class="ghost">목록</button>
+      </div>
+      <datalist id="modelList">
+        <option value="gemini-flash-latest">최신 Flash (빠름 · 권장)</option>
+        <option value="gemini-flash-lite-latest">최신 Flash-Lite (가장 빠름 · 저렴)</option>
+        <option value="gemini-pro-latest">최신 Pro (최고 품질 · 느림)</option>
+      </datalist>
+      <p class="hint">"-latest" 모델은 항상 Google의 최신 버전을 가리킵니다. [목록]을 누르면 내 키로 쓸 수 있는 모델을 불러옵니다.</p>
+    </section>
+
+    <section data-provider="cloud-llm cloud-v2">
+      <label for="cloudApiKey">Cloud Translation API 키</label>
+      <div class="row">
+        <input type="password" id="cloudApiKey" placeholder="AIza…" autocomplete="off" spellcheck="false">
+        <button type="button" class="ghost" data-toggle="cloudApiKey">보기</button>
+      </div>
+      <div data-provider="cloud-llm">
+        <label for="cloudProjectId">Google Cloud 프로젝트 ID</label>
+        <input type="text" id="cloudProjectId" placeholder="my-project-123" spellcheck="false">
+      </div>
+      <p class="hint">Google Cloud 콘솔에서 Cloud Translation API를 사용 설정하고 API 키를 만드세요 (유료).</p>
+    </section>
+
+    <section data-provider="free">
+      <p class="hint">키 없이 Google 번역 웹 엔드포인트를 사용합니다. 비공식이라 요청이 많으면 막힐 수 있고, 문맥을 고려하는 Gemini보다 품질이 낮습니다.</p>
+    </section>
+
+    <section class="grid">
+      <div>
+        <label for="targetLang">번역 언어</label>
+        <select id="targetLang"></select>
+      </div>
+      <div>
+        <label for="displayMode">표시 방식</label>
+        <select id="displayMode">
+          <option value="translated">번역만</option>
+          <option value="dual">원문 + 번역</option>
+        </select>
+      </div>
+    </section>
+
+    <section>
+      <label for="fontScale">글자 크기 <output id="fontScaleOut"></output></label>
+      <input type="range" id="fontScale" min="0.6" max="2" step="0.05">
+    </section>
+
+    <section>
+      <label class="check"><input type="checkbox" id="autoEnableCC"> 영상을 열면 자막(CC) 자동으로 켜기</label>
+    </section>
+
+    <section class="actions">
+      <button type="button" id="test">번역 테스트</button>
+      <button type="button" id="clearCache" class="ghost">번역 캐시 지우기</button>
+    </section>
+    <p id="message" class="message" role="status"></p>
+
+    <footer>유튜브 자막(CC) 버튼으로 번역 자막도 함께 켜고 끕니다.</footer>
+  </main>
+  <script src="../src/defaults.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

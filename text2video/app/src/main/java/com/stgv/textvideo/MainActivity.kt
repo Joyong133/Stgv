@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun restoreSettings() {
         slRate.value = snap(prefs.getFloat("rate", 1.0f), 0.5f, 2.0f)
-        slPitch.value = snap(prefs.getFloat("pitch", 1.0f), 0.5f, 1.5f)
+        slPitch.value = snap(prefs.getFloat("pitch", 1.0f), 0.5f, 2.0f)
         updateSliderLabels()
         etApiKey.setText(prefs.getString("apikey", ""))
         cbAllLang.isChecked = prefs.getBoolean("all_lang", false)
@@ -281,6 +281,10 @@ class MainActivity : AppCompatActivity() {
         slPitch.addOnSliderTouchListener(restartOnRelease)
 
         btnPreview.setOnClickListener { previewVoice() }
+        findViewById<View>(R.id.btnStyleNormal).setOnClickListener { applyStyle(1.0f, 1.0f, "기본") }
+        findViewById<View>(R.id.btnStyleCute).setOnClickListener { applyStyle(1.1f, 1.35f, "귀여운") }
+        findViewById<View>(R.id.btnStyleKid).setOnClickListener { applyStyle(1.05f, 1.6f, "아이 같은") }
+        findViewById<View>(R.id.btnStyleCalm).setOnClickListener { applyStyle(0.9f, 0.95f, "차분한") }
         findViewById<View>(R.id.btnVoiceHelp).setOnClickListener { showVoiceHelp() }
 
         btnPlay.setOnClickListener { startReading() }
@@ -648,6 +652,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 같은 무료 목소리라도 음 높이·속도를 바꿔 느낌을 바꿈 (귀엽게 = 높고 살짝 빠르게) */
+    private fun applyStyle(rate: Float, pitch: Float, name: String) {
+        if (maker != null) return
+        slRate.value = snap(rate, 0.5f, 2.0f)
+        slPitch.value = snap(pitch, 0.5f, 2.0f)
+        if (cloudMode && !currentCloudVoice().pitchOk && pitch != 1.0f) {
+            toast("Chirp 3 HD 목소리는 음 높이 조절이 안 돼요. $name 느낌을 내려면 Neural2 · A 목소리를 골라 주세요.")
+        } else {
+            toast("$name 목소리로 바꿨어요")
+        }
+        if (reading) {
+            stopEngines()
+            speak(segments.map { it.text }, readIndex, readListener)
+        } else {
+            previewVoice()
+        }
+    }
+
     private fun previewVoice() {
         if (maker != null) return
         stopReading()
@@ -915,6 +937,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setInputsEnabled(on: Boolean) {
         listOf<View>(
+            findViewById(R.id.btnStyleNormal), findViewById(R.id.btnStyleCute),
+            findViewById(R.id.btnStyleKid), findViewById(R.id.btnStyleCalm),
             etText, etTitle, spEngine, spVoice, cbAllLang, slRate, slPitch, spTheme, etApiKey,
             findViewById(R.id.btnOpen), findViewById(R.id.btnPaste), findViewById(R.id.btnClear),
             findViewById(R.id.rbPortrait), findViewById(R.id.rbLandscape),

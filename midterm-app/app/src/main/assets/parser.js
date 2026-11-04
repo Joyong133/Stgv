@@ -141,7 +141,9 @@
   // Senate / governor pages: one race per state.
   function parseStatewide(text) {
     var races = {};
-    text = dropSections(text, /preceding congress|previous congress|see also|references|notes|external links/i);
+    // Note: the Ohio/Florida 2026 Senate specials sit under "Special elections during the
+    // preceding Congress", so those sections must be kept here.
+    text = dropSections(text, /see also|references|notes|external links/i);
     tableRows(text).forEach(function (row) {
       var cands = candidatesOf(row);
       if (cands.length === 0) return;

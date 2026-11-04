@@ -4,8 +4,18 @@ const assert = require('assert');
 const P = require('../app/src/main/assets/parser.js');
 
 const senate = `
-== Special elections during the preceding Congress ==
-None.
+=== Special elections during the preceding Congress ===
+{|
+|-
+! [[2026 United States Senate special election in Florida|Florida]]<br />(Class 3)
+| {{Shading PVI|R|5}}
+| [[Ashley Moody]]
+| {{Party shading/Republican}} | Republican
+| nowrap | {{Plainlist |
+*{{Party stripe|Republican Party (United States)}}{{aye}} '''[[Ashley Moody]]''' (Republican)
+*{{Party stripe|Democratic Party (United States)}}[[Angie Nixon]] (Democratic)
+}}
+|}
 
 == Elections leading to the next Congress ==
 {| class="wikitable sortable"
@@ -43,7 +53,8 @@ None.
 |}
 `;
 const s = P.parseStatewide(senate);
-assert.strictEqual(Object.keys(s).length, 3);
+assert.strictEqual(Object.keys(s).length, 4);
+assert.strictEqual(s.FL.winner.name, 'Ashley Moody');
 assert.strictEqual(s.NC.winner.name, 'Roy Cooper');
 assert.strictEqual(s.NC.winner.party, 'D');
 assert.strictEqual(s.NC.winner.pct, 51.8);

@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private CheckBox cameraLockScreen;
     private CheckBox cameraAlways;
     private CheckBox playStore;
+    private CheckBox kakaoBrowser;
     private Button startButton;
 
     @Override
@@ -194,6 +195,19 @@ public class MainActivity extends Activity {
             refresh();
         });
         root.addView(playStore);
+
+        kakaoBrowser = new CheckBox(this);
+        kakaoBrowser.setText("카카오톡 인앱 브라우저 못 쓰게 하기\n(카톡에서 링크를 누르면 뜨는 웹 화면을 바로 닫아요)");
+        kakaoBrowser.setTextSize(14);
+        kakaoBrowser.setChecked(LockState.blockKakaoBrowser(this));
+        kakaoBrowser.setPadding(0, dp(8), 0, dp(8));
+        kakaoBrowser.setOnCheckedChangeListener((b, checked) -> {
+            if (checked && !LockState.isServiceEnabled(this)) {
+                Toast.makeText(this, "접근성에서 '설정 잠금'을 켜야 작동해요.", Toast.LENGTH_LONG).show();
+            }
+            LockState.setBlockKakaoBrowser(this, checked);
+        });
+        root.addView(kakaoBrowser);
 
         TextView extraNote = text(13, false);
         extraNote.setTextColor(Color.parseColor("#757575"));

@@ -14,6 +14,7 @@ final class LockState {
     private static final String KEY_CAMERA_LOCKSCREEN = "camera_lockscreen";
     private static final String KEY_CAMERA_ALWAYS = "camera_always";
     private static final String KEY_PLAY_STORE = "block_play_store";
+    private static final String KEY_KAKAO_BROWSER = "block_kakao_browser";
 
     private LockState() {}
 
@@ -61,6 +62,15 @@ final class LockState {
 
     static void setBlockPlayStore(Context c, boolean block) {
         prefs(c).edit().putBoolean(KEY_PLAY_STORE, block).commit();
+    }
+
+    /** 카카오톡 인앱 브라우저를 막을지. 시간 잠금과 따로 작동한다. */
+    static boolean blockKakaoBrowser(Context c) {
+        return prefs(c).getBoolean(KEY_KAKAO_BROWSER, false);
+    }
+
+    static void setBlockKakaoBrowser(Context c, boolean block) {
+        prefs(c).edit().putBoolean(KEY_KAKAO_BROWSER, block).commit();
     }
 
     /** 잠금을 시작하거나, 이미 잠겨 있으면 남은 시간에 더한다. 줄이는 방법은 없다. */

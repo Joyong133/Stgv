@@ -52,3 +52,32 @@ js/main.js        제목 화면 · 저장 · 항해 · 엔딩 · 메인 루프
 
 맵은 `js/maps.js`의 문자 지도(`.` 바닥, `T` 나무, `~` 물, `#` 벽 …)를 고치면 바로 바뀌고,
 몬스터 능력치와 아이템은 `js/data.js`에서 조정할 수 있습니다.
+
+---
+
+# GPT 챗봇 (`chatbot/`)
+
+OpenAI(ChatGPT) API와 연동한 웹 챗봇입니다. 서버나 빌드 없이 `chatbot/index.html`을 브라우저로 열면 바로 쓸 수 있습니다.
+
+## 사용 방법
+
+1. [platform.openai.com/api-keys](https://platform.openai.com/api-keys)에서 API 키를 만듭니다. API 사용량은 ChatGPT Plus 구독과 별도로 결제됩니다.
+2. `chatbot/index.html`을 열고 **설정**에 API 키를 입력합니다.
+3. 메시지를 입력하고 Enter로 보냅니다. 줄을 바꾸려면 Shift+Enter를 누릅니다.
+
+## 기능
+
+- 답변이 실시간 스트리밍으로 표시되고, 생성 도중 중지할 수 있음
+- 여러 대화를 저장 · 전환 · 삭제 (브라우저 localStorage)
+- 마크다운 표시(굵게, 목록, 링크, 코드 블록 복사), 답변 복사, 다시 생성
+- 설정에서 모델(`gpt-5-mini`, `gpt-4o` 등)과 시스템 프롬프트(챗봇 성격) 변경
+- OpenAI 호환 API 주소 변경 가능
+- 다크 모드와 모바일 화면 지원
+
+> API 키는 사용 중인 브라우저에만 저장되고, 설정한 API 주소로만 전송됩니다. 공용 컴퓨터에서는 사용 후 키를 지워 주세요.
+
+```
+chatbot/index.html   화면 구성
+chatbot/style.css    스타일 (라이트/다크)
+chatbot/app.js       대화 관리 · 마크다운 · OpenAI 스트리밍 호출
+```

@@ -72,7 +72,7 @@ const house = `
 | Republican
 | Incumbent re-elected.
 | {{Plainlist|
-* {{Aye}} [[Barry Moore]] (Republican) 79.2%
+*{{Party stripe|Republican Party (US)}}{{Aye}} '''[[Barry Moore]]''' (Republican) 79.2%
 * Tom Holmes (Democratic) 20.8%
 }}
 |-
@@ -88,7 +88,7 @@ const house = `
 == Alaska ==
 {| class="wikitable"
 |-
-! {{ushr|Alaska|AL|X}}
+!{{ushr|AK|AL|X}}
 | Nick Begich
 | Republican
 | {{Plainlist|

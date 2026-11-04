@@ -32,8 +32,8 @@
     ['Wisconsin', 'WI', '위스콘신'], ['Wyoming', 'WY', '와이오밍']
   ];
 
-  var BY_NAME = {};
-  STATES.forEach(function (s) { BY_NAME[s[0]] = { name: s[0], abbr: s[1], ko: s[2] }; });
+  var BY_NAME = {}, BY_ABBR = {};
+  STATES.forEach(function (s) { BY_NAME[s[0]] = BY_ABBR[s[1]] = { name: s[0], abbr: s[1], ko: s[2] }; });
 
   // Longest names first so "West Virginia" wins over "Virginia".
   var STATE_RE = new RegExp('(^|[^A-Za-z])(' + STATES.map(function (s) { return s[0]; })
@@ -160,7 +160,8 @@
     tableRows(text).forEach(function (row) {
       var m = USHR.exec(row.slice(0, 400));
       if (!m) return;
-      var st = BY_NAME[m[1].replace(/_/g, ' ')];
+      var id = m[1].replace(/_/g, ' ');
+      var st = BY_NAME[id] || BY_ABBR[id.toUpperCase()];
       if (!st) return; // territories / delegates
       var cands = candidatesOf(row);
       if (cands.length === 0) return;
@@ -185,7 +186,7 @@
   }
 
   var api = {
-    STATES: STATES, BY_NAME: BY_NAME, plain: plain, parseCandidateLine: parseCandidateLine,
+    STATES: STATES, BY_NAME: BY_NAME, BY_ABBR: BY_ABBR, plain: plain, parseCandidateLine: parseCandidateLine,
     parseStatewide: parseStatewide, parseHouse: parseHouse, tally: tally, findState: findState
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

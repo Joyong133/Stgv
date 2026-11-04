@@ -32,6 +32,19 @@ async function wikitext(title) {
       return `  ${k}: ` + r.candidates.map(c => `${c.won ? '[W] ' : ''}${c.name} (${c.party}${c.pct != null ? ' ' + c.pct + '%' : ''})`).join(' | ');
     });
     console.log(sample.join('\n'));
+    if (key !== 'house') {
+      const missing = P.STATES.map(x => x[1]).filter(a => !races[a]);
+      console.log('-- states without a parsed race: ' + missing.join(' '));
+      for (const name of ['Ohio', 'Florida'].filter(n => !races[P.BY_NAME[n].abbr])) {
+        let at = 0, shown = 0;
+        while (shown < 2 && (at = text.indexOf('[[' + name + ']]', at + 1)) > 0) {
+          const near = text.slice(at, at + 1200);
+          if (!/plainlist/i.test(near)) continue;
+          console.log(`-- context for ${name}:\n` + text.slice(Math.max(0, at - 300), at + 900));
+          shown++;
+        }
+      }
+    }
     const expect = { senate: 30, house: 380, governor: 30 }[key];
     if (t.total < expect) { bad = true; console.log(`!! only ${t.total} races parsed (expected >= ${expect})`); }
     if (t.total < expect || process.env.DUMP) {

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">앱 숨기기</string>
+
+    <string name="notice">선택한 앱을 이 서랍에서 숨깁니다. PIN으로 잠금을 해제해야 다시 보여요. (시스템 설정의 앱 목록에서는 여전히 보입니다.)</string>
+
+    <string name="action_manage">숨김 관리</string>
+    <string name="action_lock">잠그기</string>
+    <string name="action_change_pin">PIN 변경</string>
+
+    <string name="title_manage">숨김 관리 중</string>
+    <string name="subtitle_normal">숨긴 앱 %1$d개 · 탭하면 실행</string>
+    <string name="subtitle_manage">숨긴 앱 %1$d개 · 체크하면 숨김</string>
+
+    <string name="set_pin_title">PIN 설정</string>
+    <string name="change_pin_title">PIN 변경</string>
+    <string name="set_pin_msg">숨긴 앱을 다시 보려면 이 PIN이 필요합니다. 최소 4자리.</string>
+    <string name="enter_pin_title">PIN 입력</string>
+    <string name="pin_hint">숫자 4자리 이상</string>
+
+    <string name="pin_saved">PIN이 저장되었습니다</string>
+    <string name="pin_too_short">PIN은 최소 4자리여야 합니다</string>
+    <string name="pin_wrong">PIN이 올바르지 않습니다</string>
+
+    <string name="cannot_launch">%1$s을(를) 실행할 수 없습니다</string>
+    <string name="app_icon_desc">앱 아이콘</string>
+
+    <string name="ok">확인</string>
+    <string name="cancel">취소</string>
+</resources>

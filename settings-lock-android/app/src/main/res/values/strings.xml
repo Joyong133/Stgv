@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">설정 잠금</string>
-    <string name="service_desc">정해 둔 시간 동안 설정 앱이 열리면 바로 홈 화면으로 돌려보냅니다. 설정 앱 · 홈 화면 설정 · 앱 설치/삭제 화면이 열렸는지만 확인하며, 화면 내용은 읽지 않습니다.</string>
+    <string name="service_desc">정해 둔 시간 동안 설정 앱이 열리면 바로 홈 화면으로 돌려보냅니다. 켜 두면 잠금화면 카메라도 막습니다. 어떤 앱의 어떤 화면이 열렸는지만 확인하며, 화면 내용은 읽지 않습니다.</string>
 </resources>

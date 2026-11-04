@@ -11,6 +11,8 @@ final class LockState {
     private static final String PREFS = "lock";
     private static final String KEY_END_AT = "end_at";
     private static final String KEY_BLOCK_UNINSTALL = "block_uninstall";
+    private static final String KEY_CAMERA_LOCKSCREEN = "camera_lockscreen";
+    private static final String KEY_CAMERA_ALWAYS = "camera_always";
 
     private LockState() {}
 
@@ -32,6 +34,23 @@ final class LockState {
 
     static boolean blockUninstall(Context c) {
         return prefs(c).getBoolean(KEY_BLOCK_UNINSTALL, true);
+    }
+
+    /** 잠금화면(휴대폰이 잠긴 상태)에서 카메라를 막을지. 시간 잠금과 따로 작동한다. */
+    static boolean blockCameraOnLockScreen(Context c) {
+        return prefs(c).getBoolean(KEY_CAMERA_LOCKSCREEN, false);
+    }
+
+    /** 잠금을 푼 상태에서도 카메라 앱을 막을지. */
+    static boolean blockCameraAlways(Context c) {
+        return prefs(c).getBoolean(KEY_CAMERA_ALWAYS, false);
+    }
+
+    static void setBlockCamera(Context c, boolean onLockScreen, boolean always) {
+        prefs(c).edit()
+                .putBoolean(KEY_CAMERA_LOCKSCREEN, onLockScreen)
+                .putBoolean(KEY_CAMERA_ALWAYS, always)
+                .commit();
     }
 
     /** 잠금을 시작하거나, 이미 잠겨 있으면 남은 시간에 더한다. 줄이는 방법은 없다. */

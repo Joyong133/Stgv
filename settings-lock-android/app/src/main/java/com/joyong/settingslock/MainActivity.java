@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.ScrollView;
@@ -47,6 +48,8 @@ public class MainActivity extends Activity {
     private NumberPicker hourPicker;
     private NumberPicker minutePicker;
     private CheckBox blockUninstall;
+    private CheckBox cameraLockScreen;
+    private CheckBox cameraAlways;
     private Button startButton;
 
     @Override
@@ -147,6 +150,42 @@ public class MainActivity extends Activity {
         note.setPadding(0, dp(16), 0, 0);
         root.addView(note);
 
+        // 기타 기능
+        TextView extra = text(17, true);
+        extra.setText("기타 기능");
+        extra.setPadding(0, dp(24), 0, dp(4));
+        root.addView(extra);
+
+        cameraLockScreen = new CheckBox(this);
+        cameraLockScreen.setText("잠금화면에서 카메라 못 쓰게 하기\n(잠금화면 카메라 버튼, 전원 버튼 두 번 누르기 포함)");
+        cameraLockScreen.setTextSize(14);
+        cameraLockScreen.setChecked(LockState.blockCameraOnLockScreen(this));
+        cameraLockScreen.setPadding(0, dp(8), 0, dp(8));
+        root.addView(cameraLockScreen);
+
+        cameraAlways = new CheckBox(this);
+        cameraAlways.setText("잠금을 푼 상태에서도 카메라 앱 못 쓰게 하기");
+        cameraAlways.setTextSize(14);
+        cameraAlways.setChecked(LockState.blockCameraAlways(this));
+        cameraAlways.setPadding(0, dp(8), 0, dp(8));
+        root.addView(cameraAlways);
+
+        CompoundButton.OnCheckedChangeListener saveCamera = (b, checked) -> {
+            if (checked && !LockState.isServiceEnabled(this)) {
+                Toast.makeText(this, "접근성에서 '설정 잠금'을 켜야 작동해요.", Toast.LENGTH_LONG).show();
+            }
+            LockState.setBlockCamera(this, cameraLockScreen.isChecked(), cameraAlways.isChecked());
+            refresh();
+        };
+        cameraLockScreen.setOnCheckedChangeListener(saveCamera);
+        cameraAlways.setOnCheckedChangeListener(saveCamera);
+
+        TextView extraNote = text(13, false);
+        extraNote.setTextColor(Color.parseColor("#757575"));
+        extraNote.setText("• 체크해 두면 시간 잠금과 상관없이 계속 막아요.\n"
+                + "• 시간 잠금 중에는 체크를 풀 수 없어요. (새로 켜는 건 돼요)");
+        root.addView(extraNote);
+
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         return scroll;
@@ -192,6 +231,9 @@ public class MainActivity extends Activity {
         blockUninstall.setEnabled(!locked);
         if (locked) blockUninstall.setChecked(LockState.blockUninstall(this));
         serviceCard.setVisibility(serviceOn ? View.GONE : View.VISIBLE);
+        // 시간 잠금 중에는 켜져 있는 카메라 막기를 끌 수 없다.
+        cameraLockScreen.setEnabled(!(locked && cameraLockScreen.isChecked()));
+        cameraAlways.setEnabled(!(locked && cameraAlways.isChecked()));
     }
 
     private void onStartClicked() {

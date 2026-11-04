@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private NumberPicker hourPicker;
     private NumberPicker minutePicker;
     private CheckBox blockUninstall;
+    private CheckBox appsOnly;
     private CheckBox cameraLockScreen;
     private CheckBox cameraAlways;
     private CheckBox playStore;
@@ -131,6 +132,13 @@ public class MainActivity extends Activity {
 
         root.addView(presetRow(new String[]{"10분", "30분", "1시간"}, new int[]{10, 30, 60}));
         root.addView(presetRow(new String[]{"3시간", "8시간", "하루"}, new int[]{180, 480, 1440}));
+
+        appsOnly = new CheckBox(this);
+        appsOnly.setText("애플리케이션 설정만 잠그기\n(다른 설정은 쓸 수 있고, 앱 목록 · 앱 정보 화면만 막아요)");
+        appsOnly.setTextSize(14);
+        appsOnly.setChecked(LockState.appsOnly(this));
+        appsOnly.setPadding(0, dp(12), 0, 0);
+        root.addView(appsOnly);
 
         blockUninstall = new CheckBox(this);
         blockUninstall.setText("잠금 중에는 앱 설치/삭제 화면도 막기 (이 앱을 지워서 푸는 걸 막아요)");
@@ -247,6 +255,7 @@ public class MainActivity extends Activity {
             String end = new SimpleDateFormat("M월 d일 a h:mm", Locale.KOREAN).format(new Date(LockState.endAt(this)));
             statusDetail.setText("남은 시간 " + LockState.formatDuration(LockState.remainingMs(this))
                     + "\n" + end + "에 풀려요"
+                    + (LockState.appsOnly(this) ? "\n애플리케이션 설정만 막는 중 (다른 설정은 쓸 수 있어요)" : "")
                     + (LockState.blockUninstall(this) ? "\n앱 설치/삭제 화면도 막는 중" : ""));
             setCardColor(statusCard, "#E8EAF6");
             startButton.setText("잠금 시간 더하기");
@@ -258,6 +267,8 @@ public class MainActivity extends Activity {
         }
         blockUninstall.setEnabled(!locked);
         if (locked) blockUninstall.setChecked(LockState.blockUninstall(this));
+        appsOnly.setEnabled(!locked);
+        if (locked) appsOnly.setChecked(LockState.appsOnly(this));
         serviceCard.setVisibility(serviceOn ? View.GONE : View.VISIBLE);
     }
 
@@ -284,12 +295,15 @@ public class MainActivity extends Activity {
                 + (minutes % 60 > 0 ? (minutes % 60) + "분" : "");
         String msg = locked
                 ? "남은 시간에 " + amount + "을 더할까요?\n더한 시간은 되돌릴 수 없어요."
-                : amount + " 동안 설정에 들어갈 수 없어요.\n시간이 끝나기 전에는 해제할 수 없어요. 시작할까요?";
+                : amount + (appsOnly.isChecked()
+                        ? " 동안 애플리케이션 설정에 들어갈 수 없어요. (다른 설정은 쓸 수 있어요)"
+                        : " 동안 설정에 들어갈 수 없어요.")
+                        + "\n시간이 끝나기 전에는 해제할 수 없어요. 시작할까요?";
         new AlertDialog.Builder(this)
                 .setTitle(locked ? "잠금 시간 더하기" : "잠금 시작")
                 .setMessage(msg)
                 .setPositiveButton(locked ? "더하기" : "시작", (d, w) -> {
-                    LockState.addLock(this, minutes * 60_000L, blockUninstall.isChecked());
+                    LockState.addLock(this, minutes * 60_000L, blockUninstall.isChecked(), appsOnly.isChecked());
                     refresh();
                 })
                 .setNegativeButton("취소", null)

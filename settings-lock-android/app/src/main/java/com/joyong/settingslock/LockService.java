@@ -86,7 +86,7 @@ public class LockService extends AccessibilityService {
         String pkg = pkgSeq.toString();
         if (pkg.equals(getPackageName())) return;
 
-        String what = blockedReason(pkg, event.getClassName());
+        String what = blockedReason(pkg, event);
         boolean timed = what != null && LockState.isLocked(this);
         if (!timed) {
             what = cameraBlockedReason(pkg);
@@ -95,7 +95,10 @@ public class LockService extends AccessibilityService {
             if (what == null) return;
         }
 
-        if (SETTINGS.contains(pkg) || INSTALLERS.contains(pkg) || PLAY_STORE.equals(pkg)) {
+        if (SETTINGS.contains(pkg) && timed && LockState.appsOnly(this)) {
+            // 애플리케이션 설정만 잠그는 중: 뒤로 가기로 그 화면만 닫고 나머지 설정은 그대로 쓰게 둔다.
+            performGlobalAction(GLOBAL_ACTION_BACK);
+        } else if (SETTINGS.contains(pkg) || INSTALLERS.contains(pkg) || PLAY_STORE.equals(pkg)) {
             performGlobalAction(GLOBAL_ACTION_HOME);
         } else if (KAKAOTALK.equals(pkg)) {
             // 인앱 브라우저만 닫고 카카오톡(대화방)은 그대로 둔다.
@@ -117,14 +120,63 @@ public class LockService extends AccessibilityService {
     }
 
     /** 막아야 하는 화면이면 그 이름을, 아니면 null. */
-    private String blockedReason(String pkg, CharSequence className) {
-        if (SETTINGS.contains(pkg)) return "설정";
+    private String blockedReason(String pkg, AccessibilityEvent event) {
+        CharSequence className = event.getClassName();
+        boolean appsOnly = LockState.appsOnly(this);
+        if (SETTINGS.contains(pkg)) {
+            if (!appsOnly) return "설정";
+            if (isAppSettingsScreen(className, event.getText())) return "애플리케이션 설정";
+            if (isAccessibilityScreen(className, event.getText())) return "접근성 설정";
+            return null;
+        }
         if (INSTALLERS.contains(pkg)) return LockState.blockUninstall(this) ? "앱 설치/삭제" : null;
-        if (isLauncher(pkg) && className != null
+        if (!appsOnly && isLauncher(pkg) && className != null
                 && className.toString().toLowerCase(Locale.ROOT).contains("setting")) {
             return "홈 화면 설정";
         }
         return null;
+    }
+
+    /** 애플리케이션 설정에 해당하는 화면(클래스) 이름 조각. */
+    private static final String[] APP_SCREEN_CLASSES = {
+            "manageapplications", "installedappdetails", "appinfo", "appdashboard",
+            "allapplications", "applicationsettings", "manageapps", "appdetails"};
+
+    /** 애플리케이션 설정 화면의 제목. (화면 내용이 아니라 창 제목만 본다) */
+    private static final Set<String> APP_SCREEN_TITLES = new HashSet<>(Arrays.asList(
+            "애플리케이션", "앱", "앱 관리", "애플리케이션 관리", "애플리케이션 관리자", "모든 앱",
+            "앱 정보", "애플리케이션 정보", "앱 및 알림", "최근에 연 앱",
+            "apps", "applications", "app info", "all apps", "manage apps", "see all apps",
+            "apps & notifications", "app management", "application manager"));
+
+    /** 이 앱을 끄지 못하게 막을 접근성 화면 제목. */
+    private static final Set<String> A11Y_SCREEN_TITLES = new HashSet<>(Arrays.asList(
+            "접근성", "설치된 앱", "설치된 서비스", "다운로드한 앱", "accessibility",
+            "installed apps", "installed services", "downloaded apps"));
+
+    private boolean isAppSettingsScreen(CharSequence className, List<CharSequence> titles) {
+        if (className != null) {
+            String c = className.toString().toLowerCase(Locale.ROOT);
+            for (String part : APP_SCREEN_CLASSES) if (c.contains(part)) return true;
+        }
+        return titleMatches(titles, APP_SCREEN_TITLES);
+    }
+
+    /** 애플리케이션 설정만 잠글 때도 접근성에서 이 앱을 꺼서 잠금을 푸는 건 막는다. */
+    private boolean isAccessibilityScreen(CharSequence className, List<CharSequence> titles) {
+        if (className != null && className.toString().toLowerCase(Locale.ROOT).contains("accessibility")) return true;
+        if (titleMatches(titles, A11Y_SCREEN_TITLES)) return true;
+        String me = getApplicationInfo().loadLabel(getPackageManager()).toString();
+        if (titles != null) for (CharSequence t : titles) if (t != null && me.contentEquals(t)) return true;
+        return false;
+    }
+
+    private static boolean titleMatches(List<CharSequence> titles, Set<String> wanted) {
+        if (titles == null) return false;
+        for (CharSequence t : titles) {
+            if (t != null && wanted.contains(t.toString().trim().toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
     }
 
     /** 카카오톡 안에서 링크를 눌러 뜨는 웹 화면(인앱 브라우저)인지. 화면(클래스) 이름으로 판단한다. */

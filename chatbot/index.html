@@ -33,7 +33,7 @@
       <div id="empty" class="empty">
         <div class="logo">💬</div>
         <h2>무엇이든 물어보세요</h2>
-        <p>OpenAI(ChatGPT) API로 대답하는 챗봇입니다.</p>
+        <p id="modeDesc"></p>
         <p id="keyHint" class="hint" hidden>먼저 <button type="button" class="link" data-open-settings>설정</button>에서 OpenAI API 키를 입력해 주세요.</p>
       </div>
     </section>
@@ -49,6 +49,12 @@
 <dialog id="settings">
   <form method="dialog" id="settingsForm">
     <h2>설정</h2>
+    <fieldset class="modes">
+      <legend>연결 방식</legend>
+      <label class="radio"><input type="radio" name="mode" value="web"> <span><b>ChatGPT 웹사이트</b><br><small>API 키 없이 내 ChatGPT 계정으로 chatgpt.com에서 답을 받아요.</small></span></label>
+      <label class="radio"><input type="radio" name="mode" value="api"> <span><b>OpenAI API</b><br><small>답변이 이 화면에 바로 나와요. API 키가 필요하고 사용량만큼 요금이 나와요.</small></span></label>
+    </fieldset>
+    <div id="apiFields">
     <label>OpenAI API 키
       <input id="apiKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
     </label>
@@ -72,6 +78,7 @@
     <label>API 주소 (OpenAI 호환 서버를 쓸 때만 변경)
       <input id="baseUrl" spellcheck="false">
     </label>
+    </div>
     <div class="row">
       <button id="clearAll" class="btn danger" type="button">모든 대화 삭제</button>
       <span class="grow"></span>

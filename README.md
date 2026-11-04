@@ -55,29 +55,47 @@ js/main.js        제목 화면 · 저장 · 항해 · 엔딩 · 메인 루프
 
 ---
 
-# GPT 챗봇 (`chatbot/`)
+# ChatGPT 챗봇 앱
 
-OpenAI(ChatGPT) API와 연동한 웹 챗봇입니다. 서버나 빌드 없이 `chatbot/index.html`을 브라우저로 열면 바로 쓸 수 있습니다.
+chatgpt.com 웹사이트와 연동되는 챗봇 앱이 두 가지 있습니다. 둘 다 **내 ChatGPT 계정을 그대로 쓰므로 API 키가 필요 없습니다.**
 
-## 사용 방법
+## 1. ChatGPT 데스크톱 앱 (`chatgpt-app/`) — Windows · macOS · Linux
 
-1. [platform.openai.com/api-keys](https://platform.openai.com/api-keys)에서 API 키를 만듭니다. API 사용량은 ChatGPT Plus 구독과 별도로 결제됩니다.
-2. `chatbot/index.html`을 열고 **설정**에 API 키를 입력합니다.
-3. 메시지를 입력하고 Enter로 보냅니다. 줄을 바꾸려면 Shift+Enter를 누릅니다.
+chatgpt.com 웹사이트를 전용 앱 창에 띄웁니다. 처음 한 번 로그인하면 다음 실행부터 로그인 상태가 유지됩니다.
 
-## 기능
+```bash
+cd chatgpt-app
+npm install      # 처음 한 번 (Node.js 18 이상 필요)
+npm start        # 앱 실행
+npm run dist     # 설치 파일 만들기 (dist/ 폴더에 생성)
+```
 
-- 답변이 실시간 스트리밍으로 표시되고, 생성 도중 중지할 수 있음
-- 여러 대화를 저장 · 전환 · 삭제 (브라우저 localStorage)
-- 마크다운 표시(굵게, 목록, 링크, 코드 블록 복사), 답변 복사, 다시 생성
-- 설정에서 모델(`gpt-5-mini`, `gpt-4o` 등)과 시스템 프롬프트(챗봇 성격) 변경
-- OpenAI 호환 API 주소 변경 가능
+- **Ctrl+Shift+Space** (Mac은 Cmd+Shift+Space): 어디서든 ChatGPT 창 불러오기/숨기기
+- **Ctrl+N** 새 채팅 · **Ctrl+Shift+N** 임시 채팅 · 보기 메뉴에서 확대/축소, 항상 위에 표시
+- ChatGPT 밖으로 나가는 링크는 기본 브라우저에서 열림
+- 마이크(음성 입력) · 알림 권한은 ChatGPT 관련 사이트에만 허용
+- 도움말 → 로그아웃으로 앱에 저장된 로그인 정보를 지울 수 있음
+
+> Google 계정 로그인은 Google 정책상 앱 창 안에서 막힐 수 있습니다. 이 경우 이메일, Microsoft 또는 Apple 계정으로 로그인하세요.
+
+## 2. 웹 챗봇 (`chatbot/`) — 휴대폰 · PC 브라우저
+
+`chatbot/index.html`을 브라우저로 열면 바로 쓸 수 있습니다. 설정에서 연결 방식을 고를 수 있습니다.
+
+| 연결 방식 | 동작 | 필요한 것 |
+| --- | --- | --- |
+| **ChatGPT 웹사이트** (기본) | 질문을 보내면 chatgpt.com이 열리며 그 질문을 바로 보냄 (`chatgpt.com/?q=질문`) | ChatGPT 로그인 |
+| **OpenAI API** | 답변이 이 화면 안에 실시간으로 표시됨 | [API 키](https://platform.openai.com/api-keys) (ChatGPT 구독과 별도 과금) |
+
+- 보낸 질문과 대화 목록이 브라우저(localStorage)에 저장되고, 웹사이트 모드에서는 "ChatGPT에서 다시 열기"를 누를 수 있음
+- API 모드: 답변 스트리밍과 중지, 다시 생성, 마크다운 표시와 코드 복사, 모델과 시스템 프롬프트 변경
 - 다크 모드와 모바일 화면 지원
 
-> API 키는 사용 중인 브라우저에만 저장되고, 설정한 API 주소로만 전송됩니다. 공용 컴퓨터에서는 사용 후 키를 지워 주세요.
+> API 키는 사용 중인 브라우저에만 저장되고, 설정한 API 주소로만 전송됩니다.
 
 ```
-chatbot/index.html   화면 구성
-chatbot/style.css    스타일 (라이트/다크)
-chatbot/app.js       대화 관리 · 마크다운 · OpenAI 스트리밍 호출
+chatgpt-app/main.js     데스크톱 앱 (Electron)
+chatbot/index.html      웹 챗봇 화면
+chatbot/style.css       스타일 (라이트/다크)
+chatbot/app.js          대화 관리 · 웹사이트 연결 · OpenAI API 스트리밍
 ```

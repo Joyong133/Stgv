@@ -1,0 +1,24 @@
+{
+  "name": "chatgpt-app",
+  "productName": "ChatGPT 데스크톱",
+  "version": "1.0.0",
+  "description": "chatgpt.com 웹사이트를 전용 창으로 띄우는 데스크톱 챗봇 앱",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.stgv.chatgpt-app",
+    "productName": "ChatGPT 데스크톱",
+    "files": ["main.js", "package.json"],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage" }
+  }
+}

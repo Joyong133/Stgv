@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>미국 중간선거 실시간</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="title-row">
+    <h1>2026 미국 중간선거 <span class="live" id="liveDot">LIVE</span></h1>
+    <button id="refreshBtn" class="icon-btn" type="button" aria-label="지금 새로고침">⟳</button>
+  </div>
+  <div class="status-row">
+    <span id="status">불러오는 중…</span>
+    <label class="interval">자동
+      <select id="interval" aria-label="자동 새로고침 간격">
+        <option value="30">30초</option>
+        <option value="60" selected>1분</option>
+        <option value="120">2분</option>
+        <option value="300">5분</option>
+        <option value="0">끄기</option>
+      </select>
+    </label>
+  </div>
+  <div class="legend">
+    <span><i class="sw d"></i>민주당</span>
+    <span><i class="sw r"></i>공화당</span>
+    <span><i class="sw i"></i>무소속·기타</span>
+    <span><i class="sw u"></i>미확정</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="senate" class="on">상원</button>
+    <button role="tab" data-tab="house">하원</button>
+    <button role="tab" data-tab="governor">주지사</button>
+    <button role="tab" data-tab="feed">속보 <b id="feedBadge" hidden></b></button>
+  </nav>
+</header>
+
+<div id="toast" class="toast" hidden></div>
+
+<main id="view"></main>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="sheet-close" type="button" aria-label="닫기">✕</button>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<footer class="foot">
+  자료: 영어 위키백과의 2026 선거 문서 (편집자들이 AP 등 언론사의 당선 확정 보도를 반영).
+  확정(✔) 표시가 붙은 경합만 집계하며, 공식 최종 결과는 각 주 선관위 발표를 따릅니다.
+</footer>
+
+<script src="parser.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

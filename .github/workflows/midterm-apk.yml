@@ -1,0 +1,62 @@
+name: Midterm APK
+
+on:
+  push:
+    paths:
+      - 'midterm-app/**'
+      - '.github/workflows/midterm-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    name: Check parser against live Wikipedia
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node midterm-app/tools/test-parser.js
+      - run: node midterm-app/tools/probe.js
+
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Parser unit test
+        run: node midterm-app/tools/test-parser.js
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Build release APK
+        run: gradle -p midterm-app :app:assembleRelease --no-daemon --stacktrace
+      - name: Rename APK
+        run: cp midterm-app/app/build/outputs/apk/release/app-release.apk midterm-live.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: midterm-live-apk
+          path: midterm-live.apk
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: midterm-apk
+          name: 미국 중간선거 실시간 APK
+          target_commitish: ${{ github.sha }}
+          body: |
+            2026 미국 중간선거 실시간 현황 앱 (민주당 파란색 / 공화당 빨간색).
+            아래 **midterm-live.apk** 를 휴대폰에서 받아 설치하세요.
+            빌드 커밋: ${{ github.sha }}
+          files: midterm-live.apk
+          make_latest: true

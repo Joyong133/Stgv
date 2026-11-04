@@ -1,0 +1,49 @@
+name: 설정 잠금 APK 빌드
+
+on:
+  push:
+    paths:
+      - 'settings-lock-android/**'
+      - '.github/workflows/settings-lock-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: APK 빌드
+        working-directory: settings-lock-android
+        run: gradle --no-daemon assembleRelease
+
+      - name: APK 이름 정리
+        run: cp settings-lock-android/app/build/outputs/apk/release/app-release.apk SettingsLock.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SettingsLock-apk
+          path: SettingsLock.apk
+
+      - name: Release에 올리기 (항상 같은 주소로 받을 수 있게)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete settings-lock --yes --cleanup-tag || true
+          gh release create settings-lock SettingsLock.apk \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "설정 잠금 앱 (APK)" \
+            --notes "휴대폰에서 SettingsLock.apk 를 눌러 받아 설치하세요. 브랜치 ${GITHUB_REF_NAME}, 커밋 ${GITHUB_SHA::7} 에서 빌드했습니다."

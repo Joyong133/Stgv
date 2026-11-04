@@ -111,6 +111,43 @@ body.touch #help { display: none; }
 .ab .a { right: 0; top: 0; background: linear-gradient(var(--maple), var(--maple-deep)); border-color: var(--maple); }
 .ab .b { left: 0; bottom: 0; }
 
+/* 터치 잠금: 화면 전체를 덮어 모든 터치를 막고, 오른쪽 해제 버튼만 남긴다 */
+#lock {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(8, 10, 20, .45);
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+#lock[hidden] { display: none; }
+.lockMsg {
+  position: absolute; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); box-sizing: border-box;
+  margin: 0; padding: 10px 20px;
+  border-radius: 14px; border: 2px solid var(--line); background: var(--panel);
+  text-align: center; font-size: 18px; line-height: 1.5;
+  color: var(--text);
+  pointer-events: none;
+}
+.lockMsg span { font-size: 14px; color: var(--dim); }
+#unlockBtn {
+  position: absolute; top: 50%;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  transform: translateY(-50%);
+  width: 64px; height: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border-radius: 16px;
+  border: 2px solid var(--maple);
+  background: var(--panel);
+  color: var(--text);
+  font: 26px var(--font);
+  touch-action: none;
+  cursor: pointer;
+}
+#unlockBtn span { font-size: 13px; color: var(--dim); }
+#unlockBtn.armed, #lockBtn.armed { background: var(--maple-deep); }
+#unlockBtn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
 #help { margin: 0; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.6; }
 kbd {
   font: 12px var(--font);

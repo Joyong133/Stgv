@@ -50,6 +50,7 @@ public class MainActivity extends Activity {
     private CheckBox blockUninstall;
     private CheckBox cameraLockScreen;
     private CheckBox cameraAlways;
+    private CheckBox playStore;
     private Button startButton;
 
     @Override
@@ -180,6 +181,20 @@ public class MainActivity extends Activity {
         cameraLockScreen.setOnCheckedChangeListener(saveCamera);
         cameraAlways.setOnCheckedChangeListener(saveCamera);
 
+        playStore = new CheckBox(this);
+        playStore.setText("Play 스토어 못 쓰게 하기");
+        playStore.setTextSize(14);
+        playStore.setChecked(LockState.blockPlayStore(this));
+        playStore.setPadding(0, dp(8), 0, dp(8));
+        playStore.setOnCheckedChangeListener((b, checked) -> {
+            if (checked && !LockState.isServiceEnabled(this)) {
+                Toast.makeText(this, "접근성에서 '설정 잠금'을 켜야 작동해요.", Toast.LENGTH_LONG).show();
+            }
+            LockState.setBlockPlayStore(this, checked);
+            refresh();
+        });
+        root.addView(playStore);
+
         TextView extraNote = text(13, false);
         extraNote.setTextColor(Color.parseColor("#757575"));
         extraNote.setText("• 체크해 두면 시간 잠금과 상관없이 계속 막아요.\n"
@@ -231,9 +246,10 @@ public class MainActivity extends Activity {
         blockUninstall.setEnabled(!locked);
         if (locked) blockUninstall.setChecked(LockState.blockUninstall(this));
         serviceCard.setVisibility(serviceOn ? View.GONE : View.VISIBLE);
-        // 시간 잠금 중에는 켜져 있는 카메라 막기를 끌 수 없다.
+        // 시간 잠금 중에는 켜져 있는 기타 기능(카메라 · Play 스토어 막기)을 끌 수 없다.
         cameraLockScreen.setEnabled(!(locked && cameraLockScreen.isChecked()));
         cameraAlways.setEnabled(!(locked && cameraAlways.isChecked()));
+        playStore.setEnabled(!(locked && playStore.isChecked()));
     }
 
     private void onStartClicked() {

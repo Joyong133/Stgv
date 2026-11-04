@@ -13,6 +13,7 @@ final class LockState {
     private static final String KEY_BLOCK_UNINSTALL = "block_uninstall";
     private static final String KEY_CAMERA_LOCKSCREEN = "camera_lockscreen";
     private static final String KEY_CAMERA_ALWAYS = "camera_always";
+    private static final String KEY_PLAY_STORE = "block_play_store";
 
     private LockState() {}
 
@@ -51,6 +52,15 @@ final class LockState {
                 .putBoolean(KEY_CAMERA_LOCKSCREEN, onLockScreen)
                 .putBoolean(KEY_CAMERA_ALWAYS, always)
                 .commit();
+    }
+
+    /** Play 스토어를 막을지. 시간 잠금과 따로 작동한다. */
+    static boolean blockPlayStore(Context c) {
+        return prefs(c).getBoolean(KEY_PLAY_STORE, false);
+    }
+
+    static void setBlockPlayStore(Context c, boolean block) {
+        prefs(c).edit().putBoolean(KEY_PLAY_STORE, block).commit();
     }
 
     /** 잠금을 시작하거나, 이미 잠겨 있으면 남은 시간에 더한다. 줄이는 방법은 없다. */

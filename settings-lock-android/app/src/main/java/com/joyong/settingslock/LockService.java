@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * 잠금 중에 설정 앱, 홈 화면 설정, (옵션) 앱 설치/삭제 화면이 앞에 뜨면 닫고 홈 화면으로 돌려보낸다.
- * 카메라 막기 옵션을 켜면 시간 잠금과 상관없이 (잠금화면에서 / 항상) 카메라 앱도 닫는다.
+ * 카메라 · Play 스토어 막기 옵션을 켜면 시간 잠금과 상관없이 카메라 앱(잠금화면에서 / 항상)과 Play 스토어도 닫는다.
  * '화면이 바뀜' 이벤트의 앱 이름과 화면(클래스) 이름만 보고, 화면 내용은 읽지 않는다.
  */
 public class LockService extends AccessibilityService {
@@ -52,6 +52,8 @@ public class LockService extends AccessibilityService {
             "com.lge.launcher3",
             "com.teslacoilsw.launcher",                  // 노바 런처
             "com.microsoft.launcher"));
+
+    private static final String PLAY_STORE = "com.android.vending";
 
     /** 잘 알려진 기본 카메라 앱. 기기에 깔린 카메라 앱은 따로 알아내서 더한다. */
     private static final Set<String> KNOWN_CAMERAS = new HashSet<>(Arrays.asList(
@@ -87,10 +89,11 @@ public class LockService extends AccessibilityService {
         boolean timed = what != null && LockState.isLocked(this);
         if (!timed) {
             what = cameraBlockedReason(pkg);
+            if (what == null && PLAY_STORE.equals(pkg) && LockState.blockPlayStore(this)) what = "Play 스토어";
             if (what == null) return;
         }
 
-        if (SETTINGS.contains(pkg) || INSTALLERS.contains(pkg)) {
+        if (SETTINGS.contains(pkg) || INSTALLERS.contains(pkg) || PLAY_STORE.equals(pkg)) {
             performGlobalAction(GLOBAL_ACTION_HOME);
         } else {
             // 홈 화면 설정·카메라: 뒤로 가기로 닫은 다음 홈으로 (잠금화면이면 잠금화면으로 돌아감).

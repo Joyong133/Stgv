@@ -36,12 +36,14 @@ async function wikitext(title) {
       const missing = P.STATES.map(x => x[1]).filter(a => !races[a]);
       console.log('-- states without a parsed race: ' + missing.join(' '));
       for (const name of ['Ohio', 'Florida'].filter(n => !races[P.BY_NAME[n].abbr])) {
-        let at = 0, shown = 0;
-        while (shown < 2 && (at = text.indexOf('[[' + name + ']]', at + 1)) > 0) {
-          const near = text.slice(at, at + 1200);
-          if (!/plainlist/i.test(near)) continue;
-          console.log(`-- context for ${name}:\n` + text.slice(Math.max(0, at - 300), at + 900));
+        const re = new RegExp(name, 'g');
+        let m, shown = 0;
+        while (shown < 3 && (m = re.exec(text))) {
+          const near = text.slice(m.index, m.index + 2500);
+          if (!/aye|plainlist/i.test(near) || !/\n\|-/.test(text.slice(Math.max(0, m.index - 300), m.index))) continue;
+          console.log(`-- context for ${name} @${m.index}:\n` + text.slice(Math.max(0, m.index - 400), m.index + 1400));
           shown++;
+          re.lastIndex = m.index + 1400;
         }
       }
     }

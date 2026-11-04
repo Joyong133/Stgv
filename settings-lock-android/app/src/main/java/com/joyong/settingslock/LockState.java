@@ -12,6 +12,7 @@ final class LockState {
     private static final String KEY_END_AT = "end_at";
     private static final String KEY_BLOCK_UNINSTALL = "block_uninstall";
     private static final String KEY_APPS_ONLY = "apps_only";
+    private static final String KEY_HOME_SETTINGS = "block_home_settings";
     private static final String KEY_CAMERA_LOCKSCREEN = "camera_lockscreen";
     private static final String KEY_CAMERA_ALWAYS = "camera_always";
     private static final String KEY_PLAY_STORE = "block_play_store";
@@ -38,6 +39,11 @@ final class LockState {
     /** 시간 잠금 때 설정 전체 대신 애플리케이션 설정만 막을지. */
     static boolean appsOnly(Context c) {
         return prefs(c).getBoolean(KEY_APPS_ONLY, false);
+    }
+
+    /** 시간 잠금 때 홈 화면 설정(런처 설정)도 막을지. */
+    static boolean blockHomeSettings(Context c) {
+        return prefs(c).getBoolean(KEY_HOME_SETTINGS, true);
     }
 
     static boolean blockUninstall(Context c) {
@@ -80,13 +86,15 @@ final class LockState {
     }
 
     /** 잠금을 시작하거나, 이미 잠겨 있으면 남은 시간에 더한다. 줄이는 방법은 없다. */
-    static void addLock(Context c, long durationMs, boolean blockUninstall, boolean appsOnly) {
+    static void addLock(Context c, long durationMs, boolean blockUninstall, boolean appsOnly,
+                        boolean blockHomeSettings) {
         long base = Math.max(System.currentTimeMillis(), endAt(c));
         SharedPreferences.Editor e = prefs(c).edit().putLong(KEY_END_AT, base + durationMs);
         if (!isLocked(c)) {
-            // 삭제 막기 · 애플리케이션 설정만 잠그기는 잠금을 새로 시작할 때만 바꿀 수 있다.
+            // 삭제 막기 · 애플리케이션 설정만 잠그기 · 홈 화면 설정 잠그기는 잠금을 새로 시작할 때만 바꿀 수 있다.
             e.putBoolean(KEY_BLOCK_UNINSTALL, blockUninstall);
             e.putBoolean(KEY_APPS_ONLY, appsOnly);
+            e.putBoolean(KEY_HOME_SETTINGS, blockHomeSettings);
         }
         e.commit();
     }

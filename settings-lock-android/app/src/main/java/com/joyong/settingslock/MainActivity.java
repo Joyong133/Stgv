@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
     private NumberPicker minutePicker;
     private CheckBox blockUninstall;
     private CheckBox appsOnly;
+    private CheckBox homeSettings;
     private CheckBox cameraLockScreen;
     private CheckBox cameraAlways;
     private CheckBox playStore;
@@ -140,6 +141,13 @@ public class MainActivity extends Activity {
         appsOnly.setPadding(0, dp(12), 0, 0);
         root.addView(appsOnly);
 
+        homeSettings = new CheckBox(this);
+        homeSettings.setText("홈 화면 설정도 잠그기\n(홈 화면을 길게 눌러 들어가는 설정)");
+        homeSettings.setTextSize(14);
+        homeSettings.setChecked(LockState.blockHomeSettings(this));
+        homeSettings.setPadding(0, dp(12), 0, 0);
+        root.addView(homeSettings);
+
         blockUninstall = new CheckBox(this);
         blockUninstall.setText("잠금 중에는 앱 설치/삭제 화면도 막기 (이 앱을 지워서 푸는 걸 막아요)");
         blockUninstall.setTextSize(14);
@@ -155,7 +163,7 @@ public class MainActivity extends Activity {
         TextView note = text(13, false);
         note.setTextColor(Color.parseColor("#757575"));
         note.setText("• 잠금이 시작되면 시간이 끝날 때까지 끄거나 줄일 수 없어요. 시간을 더하는 것만 돼요.\n"
-                + "• 잠금 중에 설정 앱(알림창의 톱니바퀴 포함)이나 홈 화면 설정을 열면 바로 홈 화면으로 돌아가요.\n"
+                + "• 잠금 중에 설정 앱(알림창의 톱니바퀴 포함)을 열면 바로 홈 화면으로 돌아가요.\n"
                 + "• 휴대폰을 껐다 켜도 잠금은 계속돼요.");
         note.setPadding(0, dp(16), 0, 0);
         root.addView(note);
@@ -256,6 +264,7 @@ public class MainActivity extends Activity {
             statusDetail.setText("남은 시간 " + LockState.formatDuration(LockState.remainingMs(this))
                     + "\n" + end + "에 풀려요"
                     + (LockState.appsOnly(this) ? "\n애플리케이션 설정만 막는 중 (다른 설정은 쓸 수 있어요)" : "")
+                    + (LockState.blockHomeSettings(this) ? "\n홈 화면 설정도 막는 중" : "")
                     + (LockState.blockUninstall(this) ? "\n앱 설치/삭제 화면도 막는 중" : ""));
             setCardColor(statusCard, "#E8EAF6");
             startButton.setText("잠금 시간 더하기");
@@ -268,6 +277,8 @@ public class MainActivity extends Activity {
         blockUninstall.setEnabled(!locked);
         if (locked) blockUninstall.setChecked(LockState.blockUninstall(this));
         appsOnly.setEnabled(!locked);
+        homeSettings.setEnabled(!locked);
+        if (locked) homeSettings.setChecked(LockState.blockHomeSettings(this));
         if (locked) appsOnly.setChecked(LockState.appsOnly(this));
         serviceCard.setVisibility(serviceOn ? View.GONE : View.VISIBLE);
     }
@@ -303,7 +314,8 @@ public class MainActivity extends Activity {
                 .setTitle(locked ? "잠금 시간 더하기" : "잠금 시작")
                 .setMessage(msg)
                 .setPositiveButton(locked ? "더하기" : "시작", (d, w) -> {
-                    LockState.addLock(this, minutes * 60_000L, blockUninstall.isChecked(), appsOnly.isChecked());
+                    LockState.addLock(this, minutes * 60_000L, blockUninstall.isChecked(), appsOnly.isChecked(),
+                            homeSettings.isChecked());
                     refresh();
                 })
                 .setNegativeButton("취소", null)

@@ -130,7 +130,7 @@ public class LockService extends AccessibilityService {
             return null;
         }
         if (INSTALLERS.contains(pkg)) return LockState.blockUninstall(this) ? "앱 설치/삭제" : null;
-        if (!appsOnly && isLauncher(pkg) && className != null
+        if (LockState.blockHomeSettings(this) && isLauncher(pkg) && className != null
                 && className.toString().toLowerCase(Locale.ROOT).contains("setting")) {
             return "홈 화면 설정";
         }

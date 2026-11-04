@@ -197,8 +197,7 @@ public class MainActivity extends Activity {
 
         TextView extraNote = text(13, false);
         extraNote.setTextColor(Color.parseColor("#757575"));
-        extraNote.setText("• 체크해 두면 시간 잠금과 상관없이 계속 막아요.\n"
-                + "• 시간 잠금 중에는 체크를 풀 수 없어요. (새로 켜는 건 돼요)");
+        extraNote.setText("• 체크해 두는 동안 시간 잠금과 상관없이 계속 막아요. 언제든 켜고 끌 수 있어요.");
         root.addView(extraNote);
 
         ScrollView scroll = new ScrollView(this);
@@ -246,10 +245,6 @@ public class MainActivity extends Activity {
         blockUninstall.setEnabled(!locked);
         if (locked) blockUninstall.setChecked(LockState.blockUninstall(this));
         serviceCard.setVisibility(serviceOn ? View.GONE : View.VISIBLE);
-        // 시간 잠금 중에는 켜져 있는 기타 기능(카메라 · Play 스토어 막기)을 끌 수 없다.
-        cameraLockScreen.setEnabled(!(locked && cameraLockScreen.isChecked()));
-        cameraAlways.setEnabled(!(locked && cameraAlways.isChecked()));
-        playStore.setEnabled(!(locked && playStore.isChecked()));
     }
 
     private void onStartClicked() {

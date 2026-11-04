@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 설정 앱과 앱 설치/삭제 화면에서 온 '화면이 바뀜' 이벤트만 받습니다. 화면 내용은 읽지 않습니다. -->
+<!-- '화면이 바뀜' 이벤트(어떤 앱의 어떤 화면이 떴는지)만 받습니다. 화면 내용은 읽지 않습니다. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="false"
     android:description="@string/service_desc"
-    android:notificationTimeout="100"
-    android:packageNames="com.android.settings,com.android.settings.intelligence,com.google.android.settings.intelligence,com.samsung.android.settings,com.android.tv.settings,com.android.packageinstaller,com.google.android.packageinstaller,com.samsung.android.packageinstaller" />
+    android:notificationTimeout="100" />

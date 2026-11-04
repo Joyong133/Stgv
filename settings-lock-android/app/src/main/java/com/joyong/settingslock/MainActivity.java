@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
         TextView note = text(13, false);
         note.setTextColor(Color.parseColor("#757575"));
         note.setText("• 잠금이 시작되면 시간이 끝날 때까지 끄거나 줄일 수 없어요. 시간을 더하는 것만 돼요.\n"
-                + "• 잠금 중에 설정 앱(알림창의 톱니바퀴 포함)을 열면 바로 홈 화면으로 돌아가요.\n"
+                + "• 잠금 중에 설정 앱(알림창의 톱니바퀴 포함)이나 홈 화면 설정을 열면 바로 홈 화면으로 돌아가요.\n"
                 + "• 휴대폰을 껐다 켜도 잠금은 계속돼요.");
         note.setPadding(0, dp(16), 0, 0);
         root.addView(note);

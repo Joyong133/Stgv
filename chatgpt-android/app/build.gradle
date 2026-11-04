@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.stgv.chatgpt'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.stgv.chatgpt'
+        minSdk 26
+        targetSdk 36
+        // GitHub Actions가 빌드 번호를 넘겨줘서, 새로 받은 APK를 덮어 설치(업데이트)할 수 있습니다.
+        versionCode((project.findProperty('versionCode') ?: '1') as int)
+        versionName "1.0.${versionCode}"
+    }
+
+    // 빌드할 때마다 같은 서명을 쓰도록 저장소에 들어 있는 테스트용 키로 서명합니다.
+    // (같은 서명이어야 새 버전을 지우지 않고 덮어 설치할 수 있습니다)
+    // Play 스토어에 올리려면 자신만의 키를 새로 만들어 비공개로 보관하세요.
+    signingConfigs {
+        shared {
+            storeFile file('shared.keystore')
+            storePassword 'android'
+            keyAlias 'chatgpt'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+        debug {
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

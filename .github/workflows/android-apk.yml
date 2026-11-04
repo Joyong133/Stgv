@@ -1,0 +1,46 @@
+name: ChatGPT 안드로이드 APK 빌드
+
+on:
+  push:
+    paths:
+      - 'chatgpt-android/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 빌드한 APK를 Releases에 올리기 위해 필요
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chatgpt-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: APK 빌드
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease -PversionCode=${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk ChatGPT.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPT-apk
+          path: chatgpt-android/ChatGPT.apk
+
+      - name: Releases에 APK 올리기
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "apk-${{ github.run_number }}" ChatGPT.apk \
+            --target "${{ github.sha }}" \
+            --title "ChatGPT 안드로이드 앱 (빌드 ${{ github.run_number }})" \
+            --notes "휴대폰에서 아래 ChatGPT.apk를 눌러 내려받은 뒤 설치하세요. 처음 설치할 때 '출처를 알 수 없는 앱 설치'를 허용해야 할 수 있습니다." \
+            --latest

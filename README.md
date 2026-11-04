@@ -57,7 +57,7 @@ js/main.js        제목 화면 · 저장 · 항해 · 엔딩 · 메인 루프
 
 # ChatGPT 챗봇 앱
 
-chatgpt.com 웹사이트와 연동되는 챗봇 앱이 두 가지 있습니다. 둘 다 **내 ChatGPT 계정을 그대로 쓰므로 API 키가 필요 없습니다.**
+chatgpt.com 웹사이트와 연동되는 챗봇 앱이 세 가지 있습니다. 둘 다 **내 ChatGPT 계정을 그대로 쓰므로 API 키가 필요 없습니다.**
 
 ## 1. ChatGPT 데스크톱 앱 (`chatgpt-app/`) — Windows · macOS · Linux
 
@@ -78,7 +78,26 @@ npm run dist     # 설치 파일 만들기 (dist/ 폴더에 생성)
 
 > Google 계정 로그인은 Google 정책상 앱 창 안에서 막힐 수 있습니다. 이 경우 이메일, Microsoft 또는 Apple 계정으로 로그인하세요.
 
-## 2. 웹 챗봇 (`chatbot/`) — 휴대폰 · PC 브라우저
+## 2. 안드로이드 앱 APK (`chatgpt-android/`)
+
+chatgpt.com을 앱 화면에 띄우는 안드로이드 앱입니다. (Android 8.0 이상)
+
+**설치:** 휴대폰에서 이 저장소의 **Releases**에 들어가 최신 `ChatGPT.apk`를 내려받아 설치합니다.
+처음 설치할 때 "출처를 알 수 없는 앱 설치"를 허용해야 할 수 있습니다.
+
+- 처음 한 번 로그인하면 로그인 상태가 유지됨
+- 사진 · 파일 첨부, 음성 입력(마이크) 지원
+- 다른 앱에서 글을 **공유 → ChatGPT**로 보내거나, 글자를 길게 눌러 **ChatGPT에게 묻기**를 누르면 바로 질문
+- ChatGPT 밖으로 나가는 링크는 기본 브라우저에서 열림
+- 뒤로 가기 버튼으로 이전 화면 이동
+
+**빌드:** `chatgpt-android/` 폴더가 바뀌어 push되면 GitHub Actions(`.github/workflows/android-apk.yml`)가 APK를 만들어 Releases에 올립니다.
+직접 빌드하려면 Android Studio로 `chatgpt-android` 폴더를 열거나 `./gradlew assembleRelease`를 실행하세요.
+
+> Google 계정 로그인은 Google 정책상 앱 안에서 막힐 수 있습니다. 이 경우 이메일, Microsoft 또는 Apple 계정으로 로그인하세요.
+> APK는 저장소에 들어 있는 테스트용 키(`app/shared.keystore`)로 서명됩니다. 같은 키로 서명해야 새 버전을 덮어 설치할 수 있어서 이렇게 했습니다. Play 스토어에 올리려면 자신만의 키를 새로 만들어 비공개로 보관하세요.
+
+## 3. 웹 챗봇 (`chatbot/`) — 휴대폰 · PC 브라우저
 
 `chatbot/index.html`을 브라우저로 열면 바로 쓸 수 있습니다. 설정에서 연결 방식을 고를 수 있습니다.
 
@@ -94,6 +113,7 @@ npm run dist     # 설치 파일 만들기 (dist/ 폴더에 생성)
 > API 키는 사용 중인 브라우저에만 저장되고, 설정한 API 주소로만 전송됩니다.
 
 ```
+chatgpt-android/        안드로이드 앱 (WebView, Java)
 chatgpt-app/main.js     데스크톱 앱 (Electron)
 chatbot/index.html      웹 챗봇 화면
 chatbot/style.css       스타일 (라이트/다크)

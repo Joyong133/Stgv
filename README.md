@@ -57,7 +57,7 @@ js/main.js        제목 화면 · 저장 · 항해 · 엔딩 · 메인 루프
 
 # ChatGPT 챗봇 앱
 
-chatgpt.com 웹사이트와 연동되는 챗봇 앱이 세 가지 있습니다. 둘 다 **내 ChatGPT 계정을 그대로 쓰므로 API 키가 필요 없습니다.**
+chatgpt.com 웹사이트와 연동되는 챗봇 앱이 세 가지 있습니다. 모두 **내 ChatGPT 계정을 그대로 쓰므로 API 키가 필요 없습니다.**
 
 ## 1. ChatGPT 데스크톱 앱 (`chatgpt-app/`) — Windows · macOS · Linux
 

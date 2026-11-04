@@ -130,60 +130,9 @@ function setupTouch() {
     btn.addEventListener('lostpointercapture', release);
     btn.addEventListener('contextmenu', e => e.preventDefault());
   });
-  setupTouchLock();
   // 캔버스를 탭하면 확인 버튼처럼 동작 (제목 화면 등)
   canvas.addEventListener('pointerdown', () => { Sound.init(); if (Game.scene === 'title' || Game.scene === 'ending') Input.down('ok'); });
   canvas.addEventListener('pointerup', () => Input.up('ok'));
-}
-
-// 터치 잠금: [잠금] 버튼을 두 번 누르면 화면 전체 터치가 막히고,
-// 오른쪽에 생기는 해제 버튼을 두 번 눌러야 다시 풀린다 (주머니 속 오작동 방지).
-function setupTouchLock() {
-  const lock = document.getElementById('lock');
-  const lockBtn = document.getElementById('lockBtn');
-  const unlockBtn = document.getElementById('unlockBtn');
-  const GAP = 400; // 두 번 누르기로 인정하는 간격(ms)
-
-  // 짧은 간격으로 두 번 눌리면 action 실행. 첫 번째 누름은 버튼을 잠깐 강조해서 알려 준다.
-  const doubleTap = (btn, action) => {
-    let last = 0, timer = null;
-    btn.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      const now = e.timeStamp || performance.now();
-      clearTimeout(timer);
-      if (now - last < GAP) {
-        last = 0;
-        btn.classList.remove('armed');
-        action();
-      } else {
-        last = now;
-        btn.classList.add('armed');
-        timer = setTimeout(() => btn.classList.remove('armed'), GAP);
-      }
-    });
-    btn.addEventListener('contextmenu', e => e.preventDefault());
-  };
-
-  const setLocked = on => {
-    lock.hidden = !on;
-    document.body.classList.toggle('locked', on);
-    if (on) {
-      // 누르고 있던 방향키·버튼이 계속 눌린 상태로 남지 않도록 모두 뗀다
-      for (const k in Input.held) Input.held[k] = false;
-      document.querySelectorAll('#pad .pbtn.on').forEach(b => b.classList.remove('on'));
-    }
-    Sound.sfx(on ? 'cancel' : 'ok');
-  };
-
-  doubleTap(lockBtn, () => setLocked(true));
-  doubleTap(unlockBtn, () => setLocked(false));
-
-  // 잠금 중에는 해제 버튼 말고는 어떤 터치·클릭도 게임으로 전달되지 않게 막는다
-  const block = e => { if (e.target !== unlockBtn && !unlockBtn.contains(e.target)) { e.preventDefault(); e.stopPropagation(); } };
-  for (const t of ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu', 'touchstart', 'touchmove', 'touchend']) {
-    lock.addEventListener(t, block, { passive: false });
-  }
 }
 
 // ───────────────────────── 사운드 (WebAudio로 직접 합성) ─────────────────────────

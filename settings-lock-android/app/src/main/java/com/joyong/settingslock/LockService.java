@@ -181,7 +181,8 @@ public class LockService extends AccessibilityService {
 
     /** 카카오톡 안에서 링크를 눌러 뜨는 웹 화면(인앱 브라우저)인지. 화면(클래스) 이름으로 판단한다. */
     private boolean isKakaoInAppBrowser(String pkg, CharSequence className) {
-        if (!KAKAOTALK.equals(pkg) || className == null || !LockState.blockKakaoBrowser(this)) return false;
+        // 시간 잠금 · 체크와 상관없이 항상 막는다.
+        if (!KAKAOTALK.equals(pkg) || className == null) return false;
         String c = className.toString().toLowerCase(Locale.ROOT);
         return c.contains("browser") || c.contains("webview");
     }

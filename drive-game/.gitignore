@@ -1,0 +1,5 @@
+# Godot 캐시
+.godot/
+*.import.tmp
+# 서명 부산물
+dist/*.idsig

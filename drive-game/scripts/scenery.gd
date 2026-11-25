@@ -727,6 +727,7 @@ static func _buildings(track: Track) -> void:
 				var sb := Basis.looking_at(face, Vector3.UP)
 				signs.append(Transform3D(sb.scaled(Vector3(sw, sh, 0.4)), sp))
 				sign_cols.append(neon[rng.randi() % neon.size()])
+		x += step
 	_scatter(track, box, xforms, colors, false, 1500.0, 300.0)
 	if signs.size() > 0:
 		var sbox := BoxMesh.new()

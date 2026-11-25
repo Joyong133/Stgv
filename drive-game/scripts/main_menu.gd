@@ -15,7 +15,7 @@ var _cards := {}
 
 func _ready() -> void:
 	theme = UiKit.theme()
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var grad := TextureRect.new()
 	var gt := GradientTexture2D.new()
@@ -45,7 +45,7 @@ func show_screen(s: String) -> void:
 	if content != null:
 		content.queue_free()
 	content = Control.new()
-	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(content)
 	match s:
@@ -143,7 +143,7 @@ func _tracks() -> void:
 			_refresh_cards()
 			track_changed.emit(id))
 		var cv := UiKit.vbox(6)
-		cv.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		cv.offset_left = 22
 		cv.offset_top = 18
 		cv.offset_right = -22

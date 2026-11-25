@@ -146,7 +146,7 @@ func _place_on_grid(c: Car, s: float, d: float) -> void:
 func _process(dt: float) -> void:
 	if paused:
 		return
-	dt = minf(dt, 0.05)
+	dt = minf(dt, 0.1)
 	state_t += dt
 	_read_player_input(dt)
 	if state == "countdown":
@@ -158,7 +158,7 @@ func _process(dt: float) -> void:
 			if mode == "race" and not c.is_player:
 				c.ai.rubber = clampf(1.0 - (c.progress - player.progress) / 1600.0, 0.9, 1.05)
 			c.ai.update(dt, cars)
-	var steps := 2 if dt > 1.0 / 45.0 else 1
+	var steps := maxi(1, ceili(dt / (1.0 / 60.0) - 0.01))
 	var h := dt / steps
 	for _i in steps:
 		for c in cars:

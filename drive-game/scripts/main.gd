@@ -23,7 +23,7 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		_on_back()
-	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+	elif what == NOTIFICATION_APPLICATION_PAUSED:
 		if race != null:
 			race.on_app_pause()
 
@@ -56,10 +56,10 @@ func _build_loading() -> void:
 	add_child(loading)
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.03, 0.1)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	loading.add_child(bg)
 	var c := CenterContainer.new()
-	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	c.theme = UiKit.theme()
 	loading.add_child(c)
 	var v := UiKit.vbox(10)
@@ -228,6 +228,10 @@ func _autotest() -> void:
 		await _shot(out + "/menu_settings.png", shots)
 		get_tree().quit()
 		return
+	if a.has("flow"):
+		await _flow_test(out, shots)
+		get_tree().quit()
+		return
 	Game.sel["track"] = a.get("track", "coast")
 	Game.sel["mode"] = a.get("mode", "race")
 	Game.sel["car"] = int(a.get("car", "0"))
@@ -255,6 +259,72 @@ func _autotest() -> void:
 			await _shot(out + "/race_%s_results.png" % Game.sel["track"], shots)
 			break
 	get_tree().quit()
+
+
+## 폰처럼 화면 터치로 메뉴를 넘겨 출발하고, 가속 버튼을 눌러 차가 움직이는지 확인
+func _flow_test(out: String, shots: bool) -> void:
+	await show_menu()
+	await _wait(1.0)
+	print("flow: menu screen=", menu.screen)
+	await _tap_button("레이스")
+	await _wait(0.5)
+	print("flow: after 레이스 -> ", menu.screen if menu != null else "no menu")
+	await _tap_button("다음")
+	await _wait(0.5)
+	print("flow: after 다음 -> ", menu.screen if menu != null else "no menu")
+	await _tap_button("출발!")
+	await _wait(2.0)
+	print("flow: race=", race != null, " busy=", busy)
+	if race == null:
+		await _shot(out + "/flow_fail.png", shots)
+		return
+	await _wait(4.5)
+	print("flow: state=", race.state, " frozen=", race.player.frozen)
+	var pad := race.hud.pad
+	print("flow: pad size=", pad.size, " global=", pad.global_position, " gas rect=", pad.buttons.get("gas"))
+	var gas: Rect2 = pad.buttons["gas"]
+	var p := _to_window(pad.global_position + gas.get_center())
+	var ev := InputEventScreenTouch.new()
+	ev.index = 0
+	ev.position = p
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _wait(3.0)
+	print("flow: gas down=", pad.is_down("gas"), " speed=", race.player.speed * 3.6, " km/h")
+	await _shot(out + "/flow_race.png", shots)
+	var up := ev.duplicate() as InputEventScreenTouch
+	up.pressed = false
+	Input.parse_input_event(up)
+	await _wait(0.3)
+	print("flow: after release gas down=", pad.is_down("gas"))
+
+
+func _to_window(canvas_pos: Vector2) -> Vector2:
+	return get_viewport().get_final_transform() * canvas_pos
+
+
+func _tap_button(text: String) -> void:
+	var target: Button = null
+	for n in get_tree().root.find_children("*", "Button", true, false):
+		var b := n as Button
+		if b.text == text and b.is_visible_in_tree():
+			target = b
+	if target == null:
+		print("flow: button not found: ", text)
+		return
+	var p := _to_window(target.get_global_rect().get_center())
+	var ev := InputEventScreenTouch.new()
+	ev.index = 0
+	ev.position = p
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var up := ev.duplicate() as InputEventScreenTouch
+	up.pressed = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func _report(t: float) -> void:

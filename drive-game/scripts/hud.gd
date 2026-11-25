@@ -40,11 +40,11 @@ func setup(r: Race) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	root = Control.new()
 	root.theme = UiKit.theme()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 	safe = Control.new()
-	safe.set_anchors_preset(Control.PRESET_FULL_RECT)
+	safe.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	safe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(safe)
 
@@ -210,15 +210,15 @@ func show_center(text: String, color := Color.WHITE) -> void:
 
 func _build_pause_menu() -> void:
 	pause_menu = Control.new()
-	pause_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_menu.visible = false
 	root.add_child(pause_menu)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.01, 0.05, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_menu.add_child(dim)
 	var cc := CenterContainer.new()
-	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pause_menu.add_child(cc)
 	var p := UiKit.panel(26)
 	cc.add_child(p)
@@ -257,14 +257,14 @@ func show_results(rows: Array, title: String, title_color: Color, notes: Array) 
 		results.queue_free()
 	pad.visible = false
 	results = Control.new()
-	results.set_anchors_preset(Control.PRESET_FULL_RECT)
+	results.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(results)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.01, 0.05, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	results.add_child(dim)
 	var cc := CenterContainer.new()
-	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	results.add_child(cc)
 	var p := UiKit.panel(26)
 	cc.add_child(p)

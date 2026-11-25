@@ -13,7 +13,7 @@ var _sb_down: StyleBoxFlat
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_sb_normal = UiKit.box(Color(0.05, 0.04, 0.1, 0.42), 26, Color(1, 1, 1, 0.22), 3, 0)
 	_sb_down = UiKit.box(Color(1.0, 0.5, 0.28, 0.55), 26, Color(1, 1, 1, 0.7), 3, 0)
 	resized.connect(_layout)

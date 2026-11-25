@@ -58,7 +58,7 @@ func set_car(model: int, paint: Color) -> void:
 
 
 func _process(dt: float) -> void:
-	if car == null:
+	if car == null or track == null or not is_instance_valid(car):
 		return
 	angle += dt * 0.16
 	var tr := 8.8 if view == "wide" else 6.0
